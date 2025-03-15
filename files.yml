@@ -1,0 +1,2 @@
+files:
+  - src: luajit/src/lua51.dll

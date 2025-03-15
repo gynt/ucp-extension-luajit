@@ -1,0 +1,9 @@
+name: luajit
+version: 1.0.0
+author: gynt
+type: module
+dependencies:
+  framework: ">=3.0.6"
+  frontend: ">=1.0.10"
+meta:
+  version: 1.0.0
