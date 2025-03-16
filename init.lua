@@ -6,6 +6,7 @@ local luaL_loadstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "
 local lua_pcall = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pcall"), 4, 0)
 local lua_tolstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_tolstring"), 3, 0)
 local lua_settop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_settop"), 2, 0)
+local lua_gettop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_gettop"), 1,  0)
 
 
 local luajit = {}
@@ -33,9 +34,24 @@ local function specialRequire(L)
   local contents = handle:read("*all")
   handle:close()
 
-  lua_pushstring(L, ucp.internal.registerString(contents))
+  -- lua_pushstring(L, ucp.internal.registerString(contents))
+  local stack = lua_gettop(L)
+  luaL_loadstring(L, ucp.internal.registerString(contents))
+  local ret = lua_pcall(L, 0, -1, 0)
 
-  return 1
+  local returns = lua_gettop(L) - stack
+
+  if ret ~= 0 then
+    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+    lua_settop(L, stack)
+    return 0
+  else
+    log(VERBOSE, "succesful")
+  end
+
+  log(VERBOSE, string.format("loaded: %s", path))
+
+  return returns
 end
 
 local function run()

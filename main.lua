@@ -1,7 +1,7 @@
 -- This code is running in luajit
 
 local f = io.open("luajit.log", 'w')
-local function log(...) 
+function log(...) 
   local args = {...}
   for k, v in ipairs(args) do
     f:write(string.format("%s", v))
@@ -1833,4 +1833,4 @@ log(MenuView)
 
 -- Doesn't work:
 
-_require("utils/code")
+log(_require("utils/code"))
