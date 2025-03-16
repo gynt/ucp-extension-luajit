@@ -10,14 +10,8 @@ local lua_settop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_s
 local luajit = {}
 local L
 
-function luajit:enable(config)
-  log(2, string.format("lib: %X", luajitdll))
-
-  log(2, "creating state")
-  L = luaL_newstate()
-  luaL_openlibs(L)
-
-  log(2, "running main.lua")
+local function run()
+  log(VERBOSE, "running main.lua")
   local f = io.open("ucp/modules/luajit/main.lua", 'r')
   local contents = f:read("*all")
   f:close()
@@ -25,13 +19,25 @@ function luajit:enable(config)
   local ret = lua_pcall(L, 0, -1, 0)
 
   if ret ~= 0 then
-    log(-1, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
     lua_settop(L, -2)
   else
-    log(2, "succesfull")
+    log(VERBOSE, "succesfull")
   end
 
-  log(2, "ran main.lua")
+  log(VERBOSE, "ran main.lua")
+end
+
+function luajit:enable(config)
+  log(VERBOSE, string.format("lib: %X", luajitdll))
+
+  log(VERBOSE, "creating state")
+  L = luaL_newstate()
+  luaL_openlibs(L)
+
+  -- hooks.registerHookCallback('afterInit', run)
+  run()
+
 end
 
 function luajit:disable(config)
