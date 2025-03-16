@@ -4,3 +4,6 @@
 [submodule "luayaml"]
 	path = luayaml
 	url = https://github.com/exosite/lua-yaml
+[submodule "json"]
+	path = json
+	url = https://github.com/rxi/json.lua

@@ -4,6 +4,7 @@ if _G._require == nil then
   _require = require
 end
 
+_require("common/events")
 _require("common/packages")
 _require("utils/log")
 _require("utils/code")
@@ -36,3 +37,9 @@ menu = Menu:createMenu({
 
 mainMenuMenuItems = ffi.cast("MenuItem *", 0x005e81c8)
 ffi.copy(menu.menuItems, mainMenuMenuItems, 99 * ffi.sizeof("MenuItem"))
+
+events.receive('test', function(key, value)
+  log("test!")
+  log(value)
+  log(json.encode(value))
+end) 

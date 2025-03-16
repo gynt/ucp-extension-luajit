@@ -14,13 +14,43 @@ local lua_gettop = core.exposeCode(getProcAddress(luajitdll, "lua_gettop"), 1,  
 
 local luajit = {}
 local L
+local LUA_GLOBALSINDEX = -10002
 
 
 local lua_pushstring = core.exposeCode(getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
 local lua_pushcclosure = core.exposeCode(getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
 local lua_setfield = core.exposeCode(getProcAddress(luajitdll, "lua_setfield"), 3, 0)
+local lua_getfield = core.exposeCode(getProcAddress(luajitdll, "lua_getfield"), 3, 0)
 
 local required = {}
+
+local function executeString(L, s, path, cleanup)
+  local cleanup = cleanup or false
+  -- lua_pushstring(L, ucp.internal.registerString(contents))
+  local stack = lua_gettop(L)
+  luaL_loadstring(L, ucp.internal.registerString(s))
+  local ret = lua_pcall(L, 0, -1, 0)
+
+  if ret ~= 0 then
+    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+    lua_settop(L, stack)
+    return 0
+  end
+
+  local returns = lua_gettop(L) - stack
+  -- if returns > 0 then
+  --   log(ERROR, string.format([[_require("%s") had return values which are not supported]], path))
+  -- end
+
+  log(VERBOSE, string.format("executed: %s", path))
+
+  if cleanup then
+    lua_settop(L, stack)
+    return 0
+  end
+  -- lua_settop(L, stack)
+  return returns
+end
 
 local function specialRequire(L)
   local pPath = lua_tolstring(L, 1, 0)
@@ -41,27 +71,10 @@ local function specialRequire(L)
   handle:close()
 
   if required[contents] ~= nil then
-    return 0
+    return executeString(L, string.format([[ return package.loaded['%s'] ]], path), path)
   end
 
-  -- lua_pushstring(L, ucp.internal.registerString(contents))
-  local stack = lua_gettop(L)
-  luaL_loadstring(L, ucp.internal.registerString(contents))
-  local ret = lua_pcall(L, 0, -1, 0)
-
-  if ret ~= 0 then
-    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
-    lua_settop(L, stack)
-    return 0
-  end
-
-  local returns = lua_gettop(L) - stack
-  if returns > 0 then log(ERROR, string.format([[_require("%s") had return values which are not supported]], path)) end
-
-  log(VERBOSE, string.format("loaded: %s", path))
-
-  lua_settop(L, stack)
-  return 0 -- we return nothing because that isn't supported.
+  return executeString(L, contents, path)
 end
 
 local function run()
@@ -69,18 +82,73 @@ local function run()
   local f = io.open("ucp/modules/luajit/main.lua", 'r')
   local contents = f:read("*all")
   f:close()
-  luaL_loadstring(L, ucp.internal.registerString(contents))
-  local ret = lua_pcall(L, 0, -1, 0)
 
-  if ret ~= 0 then
-    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+  return executeString(L, contents, "main.lua", true)
+end
+
+
+local RECEIVERS = {}
+local p_RECEIVE = ucp.internal.registerString("_RECEIVE")
+
+local function receiveFromLuaJIT()
+  local key = core.readString(lua_tolstring(L, -1, 0))
+  local value = core.readString(lua_tolstring(L, -1, 0))
+
+  local obj = json.decode(value)
+
+  if RECEIVERS[key] ~= nil then
+    for k, f in ipairs(RECEIVERS[key]) do
+      f(key, obj)
+    end
+  end
+end
+
+local function registerSend()
+  local pHook = core.allocateCode({0x90, 0x90, 0x90, 0x90, 0x90, 0xC3})
+  core.hookCode(receiveFromLuaJIT, pHook, 1, 0, 5)
+
+  lua_pushcclosure(L, pHook, 0)
+  lua_setfield(L, LUA_GLOBALSINDEX, ucp.internal.registerString("_SEND"))
+end
+
+
+
+local json = require("json/json")
+
+function luajit:sendMenuEvent(key, obj)
+  local pKey = core.allocate(key:len() + 1, true)
+  local value = json.encode(obj)
+  local pValue = core.allocate(value:len() + 1, true)
+  core.writeString(pKey, key)
+  core.writeString(pValue, value)
+
+  lua_getfield(L, LUA_GLOBALSINDEX, p_RECEIVE)
+  lua_pushstring(L, pKey)
+  lua_pushstring(L, pValue)
+  
+  core.deallocate(pKey)
+  core.deallocate(pValue)
+
+  if lua_pcall(L, 2, 0, 0) ~= 0 then
+    log(-3, string.format("ERROR in send(): %s", lua_tolstring(L, -1, 0)))
     lua_settop(L, -2)
-  else
-    log(VERBOSE, "succesfull")
+  end
+end
+
+
+function luajit:receiveMenuEvent(key, func)
+  if RECEIVERS[key] == nil then
+    RECEIVERS[key] = {}
   end
 
-  log(VERBOSE, "ran main.lua")
+  table.insert(RECEIVERS[key], func)
 end
+
+--- Create a menu by passing script string for luajit vm
+function luajit:createMenu(caller, data)
+  executeString(L, data, caller)
+end
+
 
 function luajit:enable(config)
   log(VERBOSE, string.format("lib: %X", luajitdll))
@@ -93,11 +161,13 @@ function luajit:enable(config)
   core.hookCode(specialRequire, pHook, 1, 0, 5)
 
   lua_pushcclosure(L, pHook, 0)
-  lua_setfield(L, -10002, ucp.internal.registerString("_require"))
+  lua_setfield(L, LUA_GLOBALSINDEX, ucp.internal.registerString("_require"))
 
   -- hooks.registerHookCallback('afterInit', run)
   run()
 
+  registerSend()
+  
 end
 
 function luajit:disable(config)
@@ -106,5 +176,6 @@ end
 function luajit:getState()
   return L
 end
+
 
 return luajit
