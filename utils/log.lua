@@ -1,9 +1,30 @@
-local f = io.open("luajit.log", 'w')
-function log(...) 
+local f = io.open("ucp/.cache/luajit.log", 'w')
+
+if f == nil then
+  f = io.open("ucp-luajit.log", 'w')
+end
+
+
+FATAL = -3
+ERROR = -2
+WARNING = -1
+INFO = 0
+DEBUG = 1
+VERBOSE = 2
+
+function log(logLevel, ...) 
   local args = {...}
+  local msg = ""
   for k, v in ipairs(args) do
-    f:write(string.format("%s", v))
+    local vs = string.format("%s", v)
+    msg = msg .. vs
   end
-  f:write("\n")
+  msg = msg .. "\n"
+  f:write(msg)
   f:flush()
+
+  events.send('log', {
+    logLevel = logLevel,
+    message = msg,
+  })
 end

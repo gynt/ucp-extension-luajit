@@ -1,18 +1,30 @@
 
 json = _require("json/json")
 
-_RECEIVERS = {}
+
+_RECEIVERS = {
+  ['functions.AOBExtract.reply'] = {
+    function(key, value)
+      AOBExtract_reply = value
+    end,
+  }
+}
 
 _RECEIVE = function(key, value)
   local obj = json.decode(value)
   local a = _RECEIVERS[key] or {}
   for k, f in ipairs(a) do
-    f(key, obj)
+    local result, err = pcall(f, key, obj)
+    if not result then
+      log(ERROR, err)
+    end
   end
 end
 
-_SEND = function(key, value)
-  error("_SEND function wasn't overwritten by VM manager")
+if _SEND == nil then
+  _SEND = function(key, value)
+    error("_SEND function wasn't overwritten by VM manager")
+  end
 end
 
 events = {

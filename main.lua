@@ -4,6 +4,7 @@ if _G._require == nil then
   _require = require
 end
 
+_require("common/addresses")
 _require("common/events")
 _require("common/packages")
 _require("utils/log")
@@ -15,16 +16,17 @@ _require("ui/changes")
 
 _require("ui/menu")
 
+
 function prepare()
-  log("prepare(): ")
+  log( VERBOSE, "prepare(): ")
 end
 
 function initial()
-  log("initial(): ")
+  log(VERBOSE, "initial(): ")
 end
 
 function frame()
-  log("frame(): ")
+  log(VERBOSE, "frame(): ")
 end
 
 menu = Menu:createMenu({
@@ -38,8 +40,8 @@ menu = Menu:createMenu({
 mainMenuMenuItems = ffi.cast("MenuItem *", 0x005e81c8)
 ffi.copy(menu.menuItems, mainMenuMenuItems, 99 * ffi.sizeof("MenuItem"))
 
-events.receive('test', function(key, value)
-  log("test!")
-  log(value)
-  log(json.encode(value))
-end) 
+events.receive('ping', function(key, value)
+  log(VERBOSE, value) -- is json.decoded, can be a table...
+  log(VERBOSE, json.encode(value)) --
+  events.send('pong', "well received!")
+end)
