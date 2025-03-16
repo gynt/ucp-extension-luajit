@@ -117,7 +117,6 @@ local function receiveFromLuaJIT(L)
   log(VERBOSE, string.format("receive(): parsed object: %s", obj))
 
   if RECEIVERS[key] ~= nil then
-    log(VERBOSE, string.format("receive(): has %s callbacks for: %s", #RECEIVERS[key], key))
     for k, f in ipairs(RECEIVERS[key]) do
       log(VERBOSE, string.format("receive(): firing function"))
       local result, err = pcall(f, key, obj)
@@ -125,6 +124,8 @@ local function receiveFromLuaJIT(L)
         log(ERROR, err)
       end
     end
+  else
+    log(-1, string.format("receive(): unknown key: %s", key))
   end
 
   return 0

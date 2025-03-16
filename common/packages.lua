@@ -29,3 +29,5 @@ typedef unsigned short    word;
 
 
 ]])
+
+json = _require("vendor/json/json")

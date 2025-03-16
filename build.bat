@@ -1,3 +1,3 @@
-pushd luajit\src
+pushd vendor\luajit\src
 msvcbuild.bat
 popd

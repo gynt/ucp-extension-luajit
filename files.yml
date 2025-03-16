@@ -1,7 +1,7 @@
 files:
-  - src: luajit/src/lua51.dll
-  - src: json/json.lua
-    dst: json/json.lua
+  - src: vendor/luajit/src/lua51.dll
+  - src: vendor/json/json.lua
+    dst: vendor/json/json.lua
   - src: "common/*.lua"
     dst: "common/"
   - src: "ui/*.lua"

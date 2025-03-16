@@ -4,9 +4,9 @@ if _G._require == nil then
   _require = require
 end
 
+_require("common/packages")
 _require("common/addresses")
 _require("common/events")
-_require("common/packages")
 _require("utils/log")
 _require("utils/code")
 

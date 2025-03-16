@@ -29,9 +29,7 @@ menu = Menu:createMenu({
 mainMenuMenuItems = ffi.cast("MenuItem *", 0x005e81c8)
 ffi.copy(menu.menuItems, mainMenuMenuItems, 99 * ffi.sizeof("MenuItem"))
 
-events.receive('test', function(key, value)
-  log(VERBOSE, value) -- is json.decoded, can be a table...
-  log(VERBOSE, json.encode(value)) --
+events.receive('ping', function(key, value) -- value can be a table or a scalar
   events.send('pong', "well received!")
 end)
 

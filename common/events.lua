@@ -1,7 +1,4 @@
 
-json = _require("json/json")
-
-
 _RECEIVERS = {
   ['functions.AOBExtract.reply'] = {
     function(key, value)
@@ -12,13 +9,19 @@ _RECEIVERS = {
 
 _RECEIVE = function(key, value)
   local obj = json.decode(value)
-  local a = _RECEIVERS[key] or {}
-  for k, f in ipairs(a) do
-    local result, err = pcall(f, key, obj)
-    if not result then
-      log(ERROR, err)
-    end
+  local a = _RECEIVERS[key]
+
+  if a ~=  nil then
+    for k, f in ipairs(a) do
+      local result, err = pcall(f, key, obj)
+      if not result then
+        log(ERROR, err)
+      end
+    end  
+  else
+    log(-1, string.format("receive(): unknown key: %s", key))
   end
+
 end
 
 if _SEND == nil then
