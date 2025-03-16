@@ -1832,3 +1832,5 @@ log(MenuView)
 -- ffi.cast("Menu **", 0x00613514)[0] = Menu
 
 -- Doesn't work:
+
+_require("utils/code")

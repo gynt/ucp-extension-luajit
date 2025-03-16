@@ -7,8 +7,36 @@ local lua_pcall = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pc
 local lua_tolstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_tolstring"), 3, 0)
 local lua_settop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_settop"), 2, 0)
 
+
 local luajit = {}
 local L
+
+
+local lua_pushstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
+local lua_pushcclosure = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
+local lua_setfield = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_setfield"), 3, 0)
+local function specialRequire(L)
+  local pPath = lua_tolstring(L, 1, 0)
+  local path = core.readString(pPath)
+  log(2, string.format("specialRequire(): %s", path))
+
+  local handle, err = io.open(string.format("ucp/modules/luajit/%s.lua", path))
+  if not handle then
+    handle, err = io.open(string.format("ucp/modules/luajit/%s/init.lua", path))
+  end
+
+  if not handle then
+    log(ERROR, err)
+    return 0
+  end
+
+  local contents = handle:read("*all")
+  handle:close()
+
+  lua_pushstring(L, ucp.internal.registerString(contents))
+
+  return 1
+end
 
 local function run()
   log(VERBOSE, "running main.lua")
@@ -34,6 +62,12 @@ function luajit:enable(config)
   log(VERBOSE, "creating state")
   L = luaL_newstate()
   luaL_openlibs(L)
+
+  local pHook = core.allocateCode({0x90, 0x90, 0x90, 0x90, 0x90, 0xC3})
+  core.hookCode(specialRequire, pHook, 1, 0, 5)
+
+  lua_pushcclosure(L, pHook, 0)
+  lua_setfield(L, -10002, ucp.internal.registerString("_require"))
 
   -- hooks.registerHookCallback('afterInit', run)
   run()
