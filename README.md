@@ -4,6 +4,8 @@ Provides luajit for ucp3
 ## Example
 ```lua
 
+modules.luajit:createMenu('readme-example', [[
+
 function prepare()
   log(VERBOSE, "prepare(): ")
 end
@@ -32,4 +34,6 @@ events.receive('test', function(key, value)
   log(VERBOSE, json.encode(value)) --
   events.send('pong', "well received!")
 end)
+
+]])
 ```
