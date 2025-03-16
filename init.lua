@@ -1,21 +1,27 @@
-local luajitdll = ucp.internal.loadLibraryA(io.resolveAliasedPath("ucp/modules/luajit/luajit.dll"))
+local loadLibraryA = ucp.internal.loadLibraryA
+local getProcAddress = ucp.internal.getProcAddress
 
-local luaL_newstate = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "luaL_newstate"), 0, 0)
-local luaL_openlibs = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "luaL_openlibs"), 1, 0)
-local luaL_loadstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "luaL_loadstring"), 2, 0)
-local lua_pcall = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pcall"), 4, 0)
-local lua_tolstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_tolstring"), 3, 0)
-local lua_settop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_settop"), 2, 0)
-local lua_gettop = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_gettop"), 1,  0)
+local luajitdll = loadLibraryA(io.resolveAliasedPath("ucp/modules/luajit/luajit.dll"))
+
+local luaL_newstate = core.exposeCode(getProcAddress(luajitdll, "luaL_newstate"), 0, 0)
+local luaL_openlibs = core.exposeCode(getProcAddress(luajitdll, "luaL_openlibs"), 1, 0)
+local luaL_loadstring = core.exposeCode(getProcAddress(luajitdll, "luaL_loadstring"), 2, 0)
+local lua_pcall = core.exposeCode(getProcAddress(luajitdll, "lua_pcall"), 4, 0)
+local lua_tolstring = core.exposeCode(getProcAddress(luajitdll, "lua_tolstring"), 3, 0)
+local lua_settop = core.exposeCode(getProcAddress(luajitdll, "lua_settop"), 2, 0)
+local lua_gettop = core.exposeCode(getProcAddress(luajitdll, "lua_gettop"), 1,  0)
 
 
 local luajit = {}
 local L
 
 
-local lua_pushstring = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
-local lua_pushcclosure = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
-local lua_setfield = core.exposeCode(ucp.internal.getProcAddress(luajitdll, "lua_setfield"), 3, 0)
+local lua_pushstring = core.exposeCode(getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
+local lua_pushcclosure = core.exposeCode(getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
+local lua_setfield = core.exposeCode(getProcAddress(luajitdll, "lua_setfield"), 3, 0)
+
+local required = {}
+
 local function specialRequire(L)
   local pPath = lua_tolstring(L, 1, 0)
   local path = core.readString(pPath)
@@ -34,24 +40,28 @@ local function specialRequire(L)
   local contents = handle:read("*all")
   handle:close()
 
+  if required[contents] ~= nil then
+    return 0
+  end
+
   -- lua_pushstring(L, ucp.internal.registerString(contents))
   local stack = lua_gettop(L)
   luaL_loadstring(L, ucp.internal.registerString(contents))
   local ret = lua_pcall(L, 0, -1, 0)
 
-  local returns = lua_gettop(L) - stack
-
   if ret ~= 0 then
     log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
     lua_settop(L, stack)
     return 0
-  else
-    log(VERBOSE, "succesful")
   end
+
+  local returns = lua_gettop(L) - stack
+  if returns > 0 then log(ERROR, string.format([[_require("%s") had return values which are not supported]], path)) end
 
   log(VERBOSE, string.format("loaded: %s", path))
 
-  return returns
+  lua_settop(L, stack)
+  return 0 -- we return nothing because that isn't supported.
 end
 
 local function run()
