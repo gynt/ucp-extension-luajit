@@ -45,7 +45,7 @@ local function setHookedGlobalFunction(L, name, func)
   core.hookCode(func, pHook, 1, 0, 5)
 
   lua_pushcclosure(L, pHook, 0)
-  lua_setfield(L, LUA_GLOBALSINDEX, ucp.internal.registerString(name))
+  lua_setfield(L, LUA_GLOBALSINDEX, registerString(name))
 end
 
 local function registerPreloader(L, preloader)

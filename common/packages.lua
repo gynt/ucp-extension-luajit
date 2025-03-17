@@ -30,4 +30,4 @@ typedef unsigned short    word;
 
 ]])
 
-json = _require("vendor/json/json")
+json = require("vendor/json/json")
