@@ -25,9 +25,9 @@ function itob(i)
   }
 end
 
-pOldProtect = ffi.new("DWORD[1]", {[0] = 0})
-pOldOldProtect = ffi.new("DWORD[1]", {[0] = 0})
-rweProtect = ffi.cast("DWORD", 0x40)
+local pOldProtect = ffi.new("DWORD[1]", {[0] = 0})
+local pOldOldProtect = ffi.new("DWORD[1]", {[0] = 0})
+local rweProtect = ffi.cast("DWORD", 0x40)
 
 function writeCodeInteger(address, integer)
   pOldProtect[0] = 0
