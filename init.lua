@@ -125,7 +125,7 @@ local function receiveFromLuaJIT(L)
       end
     end
   else
-    log(-1, string.format("receive(): unknown key: %s", key))
+    log(WARNING, string.format("receive(): unknown key: %s", key))
   end
 
   return 0

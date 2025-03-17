@@ -19,7 +19,7 @@ _RECEIVE = function(key, value)
       end
     end  
   else
-    log(-1, string.format("receive(): unknown key: %s", key))
+    log(WARNING, string.format("receive(): unknown key: %s", key))
   end
 
 end

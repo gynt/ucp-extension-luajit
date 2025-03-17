@@ -15,7 +15,7 @@ function initial()
 end
 
 function frame()
-  log(VERBOSE, "frame(): ")
+
 end
 
 menu = Menu:createMenu({
