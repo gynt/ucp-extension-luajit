@@ -1,20 +1,9 @@
--- This code is running in luajit
 
-if _G._require == nil then
-  _require = require
-end
+require("ui/headers")
+require("ui/functions")
+require("ui/changes")
 
-_require("common/packages")
-_require("common/addresses")
-_require("common/events")
-_require("utils/log")
-_require("utils/code")
-
-_require("ui/headers")
-_require("ui/functions")
-_require("ui/changes")
-
-_require("ui/menu")
+require("ui/menu")
 
 
 function prepare()

@@ -7,7 +7,7 @@ _RECEIVERS = {
   }
 }
 
-_RECEIVE = function(key, value)
+_RECEIVE_EVENT = function(key, value)
   local obj = json.decode(value)
   local a = _RECEIVERS[key]
 
@@ -24,8 +24,8 @@ _RECEIVE = function(key, value)
 
 end
 
-if _SEND == nil then
-  _SEND = function(key, value)
+if _SEND_EVENT == nil then
+  _SEND_EVENT = function(key, value)
     error("_SEND function wasn't overwritten by VM manager")
   end
 end
@@ -39,6 +39,6 @@ events = {
   end,
 
   send = function(key, value)
-    _SEND(key, json.encode(value))
+    _SEND_EVENT(key, json.encode(value))
   end,
 }
