@@ -14,7 +14,7 @@ VERBOSE = 2
 
 function log(logLevel, ...) 
   local args = {...}
-  local msg = ""
+  local msg = "VM: "
   for k, v in ipairs(args) do
     local vs = string.format("%s", v)
     msg = msg .. vs

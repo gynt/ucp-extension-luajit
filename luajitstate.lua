@@ -141,52 +141,6 @@ function LuaJITState:new(params)
 
   registerPreloader(o.L, preloader)
 
-  -- -- TODO: implement package.loaders function https://www.lua.org/manual/5.1/manual.html#pdf-package.loaders
-  -- setHookedGlobalFunction(o.L, "_require", function(L)
-  --   local pPath = lua_tolstring(L, 1, 0)
-  --   local path = core.readString(pPath)
-  --   log(VERBOSE, string.format("onRequire(): %s", path))
-
-  --   -- Test if already loaded
-  --   local test_existence = o:executeString(string.format([[ return package.loaded['%s'] ]], path), path, false)
-  --   if test_existence > 0 and lua_isnil(L, -1) ~= 1 then -- not nil, so exists
-  --       return 1 -- return the cached result
-  --   end
-
-  --   -- If not already loaded, call the load logic to get the string contents
-  --   local status, error_or_contents = pcall(o.requireHandler, o, path)
-
-  --   if status == false or status == nil then
-  --     log(ERROR, error_or_contents)
-  --     return 0 -- return nil
-  --   end
-
-  --   -- Execute the contents
-  --   local contents = error_or_contents
-  --   local result = o:executeString(contents, path, false)
-  --   if result == 0 or result == nil then 
-  --     -- nothing returned, or failed (already logged the error)
-  --     -- so we are done here
-  --     return 0 -- return nil
-  --   end
-
-  --   -- Cache the result
-  --   -- stack: require_result
-  --   lua_getfield(L, LUA_GLOBALSINDEX, ucp.internal.registerString('package'))
-  --   -- stack: require_result, package
-  --   lua_getfield(L, -1, ucp.internal.registerString('loaded'))
-  --   -- stack: require_result, package, loaded
-  --   lua_pushvalue(L, -3) -- copy the result
-  --   -- stack: require_result, package, loaded, require_result
-  --   lua_setfield(L, -2, pPath)
-  --   -- stack: require_result, package, loaded
-  --   lua_settop(L, -1 -2)
-  --   -- stack: require_result
-
-  --   -- Return the result
-  --   return 1
-  -- end)
-
   o.eventHandlers = {
     ['log'] = {
       function(key, value)
@@ -199,11 +153,7 @@ function LuaJITState:new(params)
     local key = core.readString(lua_tolstring(L, 1, 0))
     local value = core.readString(lua_tolstring(L, 2, 0))
 
-    log(VERBOSE, string.format("receive(): key = %s", key))
-
     local obj = yaml.parse(value)
-
-    log(VERBOSE, string.format("receive(): parsed object: %s", obj))
 
     if o.eventHandlers[key] ~= nil then
       for k, f in ipairs(o.eventHandlers[key]) do
@@ -224,11 +174,11 @@ function LuaJITState:new(params)
     o:setGlobal(name, value)
   end
 
-  o:executeFile("ucp/modules/luajit/vendor/json/json.lua", false)
-  lua_setfield(o.L, LUA_GLOBALSINDEX, registerString("json"))
+  --o:executeFile("ucp/modules/luajit/vendor/json/json.lua", false)
+  --lua_setfield(o.L, LUA_GLOBALSINDEX, registerString("json"))
+  o:executeFile("ucp/modules/luajit/common/packages.lua")
   o:executeFile("ucp/modules/luajit/common/events.lua")
   o:executeFile("ucp/modules/luajit/common/log.lua")
-  o:executeFile("ucp/modules/luajit/common/packages.lua")
   o:executeFile("ucp/modules/luajit/common/code.lua")
 
   return o

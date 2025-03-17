@@ -3,11 +3,13 @@ local LuaJITState = require("luajitstate")
 
 local luajit = {}
 
+local state
+
 function luajit:enable(config)
 
   log(VERBOSE, "testing")
   -- testing
-  local state = self:create({
+  state = self:create({
     name = "ui",
     requireHandler = function(self, path)
       local handle, err = io.open(string.format("ucp/modules/luajit/%s.lua", path))
@@ -32,6 +34,11 @@ function luajit:enable(config)
 
   state:executeFile("ucp/modules/luajit/ui/main.lua")
 
+  state:registerEventHandler("pong", function(key, obj)
+    log(VERBOSE, "received pong!")
+  end)
+  state:sendEvent("ping", "hello!")
+
   -- local pSwitchToMenuView = core.exposeCode(core.AOBScan("55 8B 6C 24 08 83 FD 17"), 3, 1)
 -- local _, pThis = utils.AOBExtract("A3 I( ? ? ? ? ) 89 5C 24 1C")
 
@@ -47,10 +54,15 @@ function luajit:create(params)
   return LuaJITState:new(params)
 end
 
+function luajit:getTest()
+  return state
+end
+
 return luajit, {
   proxy = {
     ignore = {
-      'create'
+      'create',
+      'getTest',
     }
   }
 }
