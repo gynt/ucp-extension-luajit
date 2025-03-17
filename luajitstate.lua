@@ -28,7 +28,7 @@ function LuaJITState:new(params)
 
   o.L = createState()
 
-  o.requireHandler = function(path)
+  o.requireHandler = function(s, path)
     error("no require handler specified")
   end
 
