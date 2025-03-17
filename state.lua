@@ -71,8 +71,23 @@ local function registerPreloader(L, preloader)
   -- stack: 
 end
 
+---@class LuaJITState
+---@field requireHandlers table<fun(self: LuaJITState, path: string): string>
+---@private L number pointer to the lua state
 local LuaJITState = {}
 
+
+---@class LuaJITStateParameters
+---@field name string
+---@field requireHandler fun(self: LuaJITState, path: string): string
+---@field eventHandlers table<string,table<fun(key: string, obj: any):void>>
+---@field globals table<string, string|number> table of globals to apply
+local LuaJITStateParameters = {}
+
+---Create a new LuaJIT state
+---@param params LuaJITStateParameters parameters for the new state.
+---@see LuaJITStateParameters
+---@return LuaJITState
 function LuaJITState:new(params)
   local o = {}
     
@@ -206,7 +221,12 @@ function LuaJITState:new(params)
   return o
 end
 
-function LuaJITState:executeString(string, path, cleanup)
+---Execute a file (lua script) in the context of this state
+---@param str string the script to execute
+---@param path string the path associated with the script. Is reported in case of errors.
+---@param cleanup boolean|nil whether to cleanup the lua stack (default)
+---@return LuaJITState|number returns depending on cleanup returns self or a number indicating how many stack values to return.
+function LuaJITState:executeString(str, path, cleanup)
   local L = self.L
 
   if cleanup == nil then
@@ -214,8 +234,8 @@ function LuaJITState:executeString(string, path, cleanup)
   end
   local stack = lua_gettop(L) -- store the amount of values on the stack so we can exit cleanly
 
-  local pString = core.allocate(string:len() + 1,true)
-  core.writeString(pString, string)
+  local pString = core.allocate(str:len() + 1,true)
+  core.writeString(pString, str)
 
   luaL_loadstring(L, pString)
   local ret = lua_pcall(L, 0, -1, 0)
@@ -242,6 +262,9 @@ function LuaJITState:executeString(string, path, cleanup)
   return returns -- exit dirty
 end
 
+---Execute a file (lua script) in the context of this state
+---@param path string
+---@param cleanup boolean|nil whether to cleanup the lua stack (default)
 function LuaJITState:executeFile(path, cleanup)
   local f, err = io.open(path, 'r')
   if f == nil then
@@ -252,10 +275,15 @@ function LuaJITState:executeFile(path, cleanup)
   self:executeString(contents, path, cleanup)
 end
 
+---Register require handler. When this state calls require(), this function will be invoked.
+---@param func fun(path: string): string
 function LuaJITState:registerRequireHandler(func)
   table.insert(self.requireHandlers, 1, func)
 end
 
+---Trigger or send an event to the state
+---@param key string
+---@param obj any JSON serialize object to send to the state
 function LuaJITState:sendEvent(key, obj)
   log(VERBOSE, string.format("sendEvent(): key = %s", key))
 
@@ -288,6 +316,10 @@ function LuaJITState:sendEvent(key, obj)
   return self
 end
 
+---Register an event handler function
+---@param key string key to identify the event type
+---@param func fun(key: string, obj: any): void callback function
+---@return LuaJITState
 function LuaJITState:registerEventHandler(key, func)
   if self.eventHandlers[key] == nil then
     self.eventHandlers[key] = {}
@@ -297,12 +329,17 @@ function LuaJITState:registerEventHandler(key, func)
   return self
 end
 
+---Set a global in the state to a string or number
+---@param name string
+---@param value string|number
 function LuaJITState:setGlobal(name, value)
   self:executeString(string.format([[%s = %s]], name, value))
 
   return self
 end
 
+---Get the internal lua state pointer associated with this luajit state
+---@return number
 function LuaJITState:getState()
   return self.L
 end
