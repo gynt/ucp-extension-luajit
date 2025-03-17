@@ -14,15 +14,12 @@ local lua_tolstring = core.exposeCode(getProcAddress(luajitdll, "lua_tolstring")
 local lua_settop = core.exposeCode(getProcAddress(luajitdll, "lua_settop"), 2, 0)
 local lua_gettop = core.exposeCode(getProcAddress(luajitdll, "lua_gettop"), 1,  0)
 local lua_pushstring = core.exposeCode(getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
-local lua_pushinteger = core.exposeCode(getProcAddress(luajitdll, "lua_pushinteger"), 2, 0)
-local lua_pushnumber = core.exposeCode(getProcAddress(luajitdll, "lua_pushnumber"), 2, 0)
 local lua_pushcclosure = core.exposeCode(getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
 local lua_setfield = core.exposeCode(getProcAddress(luajitdll, "lua_setfield"), 3, 0)
 local lua_getfield = core.exposeCode(getProcAddress(luajitdll, "lua_getfield"), 3, 0)
-local lua_pushvalue = core.exposeCode(getProcAddress(luajitdll, "lua_pushvalue"), 2, 0)
-local lua_isnil = core.exposeCode(getProcAddress(luajitdll, "lua_isnil"), 2, 0)
 local lua_objlen = core.exposeCode(getProcAddress(luajitdll, "lua_objlen"), 2, 0)
 local lua_rawgeti = core.exposeCode(getProcAddress(luajitdll, "lua_rawgeti"), 3, 0)
+local lua_pushnil = core.exposeCode(getProcAddress(luajitdll, "lua_pushnil"), 1, 0)
 local lua_rawseti = core.exposeCode(getProcAddress(luajitdll, "lua_rawseti"), 3, 0)
 local p_RECEIVE_EVENT = registerString("_RECEIVE_EVENT")
 
@@ -52,12 +49,15 @@ local function registerPreloader(L, preloader)
   local pPreloader = createLuaFunctionHook(preloader)
 
   -- stack:
-  lua_getfield(L, LUA_GLOBALSINDEX, "package")
+  lua_getfield(L, LUA_GLOBALSINDEX, registerString("package"))
   -- stack: package
-  lua_getfield(L, -1, "loaders")
+  lua_getfield(L, -1, registerString("loaders"))
   -- stack: package, loaders
   local n = lua_objlen(L, -1)
-  for i=n+1,2,1 do
+  
+  if n ~= 4 then log(WARNING, "expected 4 loaders, received: ", n) end
+
+  for i=(n+1),2,-1 do
     lua_rawgeti(L, -1, i-1) -- get the last entry
     -- stack: package, loaders, last
     lua_rawseti(L, -2, i) -- set it one spot further away
@@ -110,6 +110,7 @@ function LuaJITState:new(params)
   local pLoader = createLuaFunctionHook(loader)
 
   local preloader = function(L)
+    local stack = lua_gettop(L)
     -- This is called when the module isn't loaded yet
     local pPath = lua_tolstring(L, 1, 0)
     local path = core.readString(pPath)
@@ -119,11 +120,14 @@ function LuaJITState:new(params)
     local status, error_or_contents = pcall(o.requireHandler, o, path)
 
     if status == false or status == nil then
-      log(ERROR, error_or_contents)
-      local pString = core.allocate(error_or_contents:len() + 1, true)
-      core.writeString(pString, error_or_contents)
-      lua_pushstring(L, pString)
-      core.deallocate(pString)
+      log(VERBOSE, error_or_contents)
+      -- local pString = core.allocate(error_or_contents:len() + 1, true)
+      -- core.writeString(pString, error_or_contents)
+      -- lua_pushstring(L, pString)
+      -- core.deallocate(pString)
+      lua_settop(L, stack)
+      lua_pushnil(L)
+      log(VERBOSE, "returning nil")
       return 1 -- return error, alternatively we can return a nil
     end
 
@@ -220,6 +224,8 @@ function LuaJITState:new(params)
     o:setGlobal(name, value)
   end
 
+  o:executeFile("ucp/modules/luajit/vendor/json/json.lua", false)
+  lua_setfield(o.L, LUA_GLOBALSINDEX, registerString("json"))
   o:executeFile("ucp/modules/luajit/common/events.lua")
   o:executeFile("ucp/modules/luajit/common/log.lua")
   o:executeFile("ucp/modules/luajit/common/packages.lua")

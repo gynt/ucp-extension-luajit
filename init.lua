@@ -24,9 +24,13 @@ function luajit:enable(config)
 
       return contents
     end,
+    globals = {
+      addr_0x00613418 = 0x00613418,
+      addr_0x0057bfc3 = 0x0057bfc3,
+    },
   })
 
-  state:executeFile("ui/main.lua")
+  state:executeFile("ucp/modules/luajit/ui/main.lua")
 
   -- local pSwitchToMenuView = core.exposeCode(core.AOBScan("55 8B 6C 24 08 83 FD 17"), 3, 1)
 -- local _, pThis = utils.AOBExtract("A3 I( ? ? ? ? ) 89 5C 24 1C")

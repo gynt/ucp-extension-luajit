@@ -1,3 +1,7 @@
+for i, f in pairs(package.loaders) do
+  log(VERBOSE, "loader :", f)
+end
+
 ffi = require("ffi")
 
 ffi.cdef([[
