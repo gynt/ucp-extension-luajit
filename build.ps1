@@ -1,3 +1,3 @@
 pushd vendor\luajit\src
-msvcbuild.bat
+.\msvcbuild.bat
 popd
