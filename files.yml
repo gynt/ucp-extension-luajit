@@ -4,7 +4,3 @@ files:
     dst: vendor/json/json.lua
   - src: "common/*.lua"
     dst: "common/"
-  - src: "ui/*.lua"
-    dst: "ui/"
-  - src: "utils/*.lua"
-    dst: "utils/"
