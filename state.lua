@@ -1,26 +1,35 @@
 local yaml = yaml
-local loadLibraryA = ucp.internal.loadLibraryA
-local getProcAddress = ucp.internal.getProcAddress
-local registerString = ucp.internal.registerString
+local registerString = core.registerString
 
-local luajitdll = loadLibraryA(io.resolveAliasedPath("ucp/modules/luajit/luajit.dll"))
+local luajitdll, err = core.openLibraryHandle("ucp/modules/luajit/luajit.dll")
+
+if luajitdll == false or luajitdll == nil then
+  error(err)
+end
+
+local function getProcAddress(funcName)
+  return luajitdll:getProcAddress(funcName)
+end
+
 local LUA_GLOBALSINDEX = -10002
 
-local luaL_newstate = core.exposeCode(getProcAddress(luajitdll, "luaL_newstate"), 0, 0)
-local luaL_openlibs = core.exposeCode(getProcAddress(luajitdll, "luaL_openlibs"), 1, 0)
-local luaL_loadstring = core.exposeCode(getProcAddress(luajitdll, "luaL_loadstring"), 2, 0)
-local lua_pcall = core.exposeCode(getProcAddress(luajitdll, "lua_pcall"), 4, 0)
-local lua_tolstring = core.exposeCode(getProcAddress(luajitdll, "lua_tolstring"), 3, 0)
-local lua_settop = core.exposeCode(getProcAddress(luajitdll, "lua_settop"), 2, 0)
-local lua_gettop = core.exposeCode(getProcAddress(luajitdll, "lua_gettop"), 1,  0)
-local lua_pushstring = core.exposeCode(getProcAddress(luajitdll, "lua_pushstring"), 2, 0)
-local lua_pushcclosure = core.exposeCode(getProcAddress(luajitdll, "lua_pushcclosure"), 3, 0)
-local lua_setfield = core.exposeCode(getProcAddress(luajitdll, "lua_setfield"), 3, 0)
-local lua_getfield = core.exposeCode(getProcAddress(luajitdll, "lua_getfield"), 3, 0)
-local lua_objlen = core.exposeCode(getProcAddress(luajitdll, "lua_objlen"), 2, 0)
-local lua_rawgeti = core.exposeCode(getProcAddress(luajitdll, "lua_rawgeti"), 3, 0)
-local lua_pushnil = core.exposeCode(getProcAddress(luajitdll, "lua_pushnil"), 1, 0)
-local lua_rawseti = core.exposeCode(getProcAddress(luajitdll, "lua_rawseti"), 3, 0)
+
+
+local luaL_newstate = core.exposeCode(getProcAddress("luaL_newstate"), 0, 0)
+local luaL_openlibs = core.exposeCode(getProcAddress("luaL_openlibs"), 1, 0)
+local luaL_loadstring = core.exposeCode(getProcAddress("luaL_loadstring"), 2, 0)
+local lua_pcall = core.exposeCode(getProcAddress("lua_pcall"), 4, 0)
+local lua_tolstring = core.exposeCode(getProcAddress("lua_tolstring"), 3, 0)
+local lua_settop = core.exposeCode(getProcAddress("lua_settop"), 2, 0)
+local lua_gettop = core.exposeCode(getProcAddress("lua_gettop"), 1,  0)
+local lua_pushstring = core.exposeCode(getProcAddress("lua_pushstring"), 2, 0)
+local lua_pushcclosure = core.exposeCode(getProcAddress("lua_pushcclosure"), 3, 0)
+local lua_setfield = core.exposeCode(getProcAddress("lua_setfield"), 3, 0)
+local lua_getfield = core.exposeCode(getProcAddress("lua_getfield"), 3, 0)
+local lua_objlen = core.exposeCode(getProcAddress("lua_objlen"), 2, 0)
+local lua_rawgeti = core.exposeCode(getProcAddress("lua_rawgeti"), 3, 0)
+local lua_pushnil = core.exposeCode(getProcAddress("lua_pushnil"), 1, 0)
+local lua_rawseti = core.exposeCode(getProcAddress("lua_rawseti"), 3, 0)
 local p_RECEIVE_EVENT = registerString("_RECEIVE_EVENT")
 
 local function createState()
@@ -166,10 +175,8 @@ function LuaJITState:new(params)
 
     end
 
-    local pString = core.allocate(result:len() + 1, true)
-    core.writeString(pString, result)
-    lua_pushstring(L, pString)
-    core.deallocate(pString)
+    local str = core.CString(result)
+    lua_pushstring(L, str.address)
     -- lua_settop(L, stack)
     -- lua_pushnil(L)
     -- log(VERBOSE, "returning nil")
@@ -234,13 +241,10 @@ function LuaJITState:executeString(str, path, cleanup)
   end
   local stack = lua_gettop(L) -- store the amount of values on the stack so we can exit cleanly
 
-  local pString = core.allocate(str:len() + 1,true)
-  core.writeString(pString, str)
+  local cstr = core.CString(str)
 
-  luaL_loadstring(L, pString)
+  luaL_loadstring(L, cstr.address)
   local ret = lua_pcall(L, 0, -1, 0)
-
-  core.deallocate(pString)
 
   if ret ~= 0 then
     log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
@@ -291,20 +295,14 @@ function LuaJITState:sendEvent(key, obj)
 
   local value = json:encode(obj)
 
-  local pKey = core.allocate(key:len() + 1, true)
-  local pValue = core.allocate(value:len() + 1, true)
-
-  core.writeString(pKey, key)
-  core.writeString(pValue, value)
+  local keyStr = core.CString(key)
+  local valueStr = core.CString(value)
 
   local stack = lua_gettop(L)
 
   lua_getfield(L, LUA_GLOBALSINDEX, p_RECEIVE_EVENT)
-  lua_pushstring(L, pKey)
-  lua_pushstring(L, pValue)
-
-  core.deallocate(pKey)
-  core.deallocate(pValue)
+  lua_pushstring(L, keyStr.address)
+  lua_pushstring(L, valueStr.address)
 
   if lua_pcall(L, 2, 0, 0) ~= 0 then
     log(ERROR, string.format("error in _RECEIVE_EVENT(): %s", lua_tolstring(L, -1, 0)))
