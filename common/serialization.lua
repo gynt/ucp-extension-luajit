@@ -1,17 +1,25 @@
 function _SERIALIZE(...)
     local args = {...}
+
+    local r
     if #args == 1 then
-        return json.encode(args[1])
+        r = json.encode(...)
     end
 
-    return json.encode(args)
+    r = json.encode(args)
+
+    -- log(VERBOSE, string.format("_SERIALIZE(%s)", r))
+
+    return r
 end
 
 function _DESERIALIZE(...)
     local args = {...}
     if #args == 1 then
-        return json.decode(args[1])
+      -- log(VERBOSE, string.format("_DESERIALIZE(%s)", args[1]))
+      return json.decode(...)
     end
 
+    -- log(VERBOSE, string.format("_DESERIALIZE(%s)", args))
     return json.decode(args)
 end

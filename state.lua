@@ -188,6 +188,7 @@ function LuaJITState:new(params)
   o.eventHandlers = {
     ['log'] = {
       function(key, value)
+        for k,v  in pairs(value) do print(k, v) end
         log(value.logLevel, value.message)
       end,
     },
@@ -197,11 +198,12 @@ function LuaJITState:new(params)
     local key = core.readString(lua_tolstring(L, 1, 0))
     local value = core.readString(lua_tolstring(L, 2, 0))
 
+    log(VERBOSE, string.format("_SEND_EVENT(%s): %s", key, value))
     local obj = yaml.parse(value)
 
     if o.eventHandlers[key] ~= nil then
       for k, f in ipairs(o.eventHandlers[key]) do
-        log(VERBOSE, string.format("receive(): firing function"))
+        log(VERBOSE, string.format("receive(): firing function for: %s", key))
         local result, err_or_ret = pcall(f, key, obj)
         if not result then 
           log(ERROR, err_or_ret)
@@ -329,7 +331,7 @@ end
 ---Invoke a function with arguments
 ---@param funcName string the name of the function, should be global
 ---@param ... any arguments to the function
----@return value any the return values of the function
+---@return any value the return values of the function
 function LuaJITState:invoke(funcName, ...)
   log(VERBOSE, string.format("invoke(%s)", funcName))
 
@@ -338,6 +340,7 @@ function LuaJITState:invoke(funcName, ...)
   local L = self.L
 
   local serializedArgs = json:encode(args) -- todo: check if no arguments is correctly forwarded here!
+  log(VERBOSE, string.format("invoke: %s(%s)", funcName, serializedArgs))
 
   local funcStr = core.CString(funcName)
   local argsStr = core.CString(serializedArgs)
@@ -351,13 +354,15 @@ function LuaJITState:invoke(funcName, ...)
 
   if lua_pcall(L, 2, 1, 0) ~= 0 then -- expect a single value
     -- Note: the error could be an implementation error (serialization) or an user error
-    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, lua_tolstring(L, -1, 0))
+    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, core.readString(lua_tolstring(L, -1, 0)))
     log(ERROR, errorMsg)
     lua_settop(L, -2) -- pop one value (the error)
     error(errorMsg)
   end
 
-  local result = yaml.parse(core.readString(lua_tolstring(L, -1, 0)))
+  local serializedRet = core.readString(lua_tolstring(L, -1, 0))
+  log(VERBOSE, string.format("invoke: %s() => %s", funcName, serializedRet))
+  local result = yaml.parse(serializedRet)
 
   lua_settop(L, stack)
 
@@ -367,7 +372,7 @@ end
 ---Invoke a function with arguments wrapped in a pcall()
 ---@param funcName string the name of the function, should be global
 ---@param ... any arguments to the function
----@return value bool,any a boolean indicating success and the return values
+---@return bool,any value boolean indicating success and the return values
 function LuaJITState:pinvoke(funcName, ...)
   log(VERBOSE, string.format("invoke(%s)", funcName))
 
@@ -389,7 +394,7 @@ function LuaJITState:pinvoke(funcName, ...)
 
   if lua_pcall(L, 2, 1, 0) ~= 0 then -- expect a single value
     -- Since this means an implementation error, we should reraise the error instead of feeding it to the caller
-    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, lua_tolstring(L, -1, 0))
+    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, core.readString(lua_tolstring(L, -1, 0)))
     log(ERROR, errorMsg)
     lua_settop(L, -2) -- pop one value (the error)
     error(errorMsg)
