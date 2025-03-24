@@ -223,6 +223,7 @@ function LuaJITState:new(params)
   o:executeFile("ucp/modules/luajit/common/packages.lua")
   o:executeFile("ucp/modules/luajit/common/serialization.lua")
   o:executeFile("ucp/modules/luajit/common/events.lua")
+  o:executeFile("ucp/modules/luajit/common/invoke.lua")
   o:executeFile("ucp/modules/luajit/common/log.lua")
   o:executeFile("ucp/modules/luajit/common/code.lua")
 
@@ -323,6 +324,82 @@ function LuaJITState:executeFile(path, cleanup, convert)
   f:close()
 
   return self:executeString(contents, path, cleanup, convert)
+end
+
+---Invoke a function with arguments
+---@param funcName string the name of the function, should be global
+---@param ... any arguments to the function
+---@return value any the return values of the function
+function LuaJITState:invoke(funcName, ...)
+  log(VERBOSE, string.format("invoke(%s)", funcName))
+
+  local args = {...}
+
+  local L = self.L
+
+  local serializedArgs = json:encode(args) -- todo: check if no arguments is correctly forwarded here!
+
+  local funcStr = core.CString(funcName)
+  local argsStr = core.CString(serializedArgs)
+
+  local stack = lua_gettop(L)
+
+  local invokeStr = core.CString("_INVOKE")
+  lua_getfield(L, LUA_GLOBALSINDEX, invokeStr.address)
+  lua_pushstring(L, funcStr.address)
+  lua_pushstring(L, argsStr.address)
+
+  if lua_pcall(L, 2, 1, 0) ~= 0 then -- expect a single value
+    -- Note: the error could be an implementation error (serialization) or an user error
+    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, lua_tolstring(L, -1, 0))
+    log(ERROR, errorMsg)
+    lua_settop(L, -2) -- pop one value (the error)
+    error(errorMsg)
+  end
+
+  local result = yaml.parse(core.readString(lua_tolstring(L, -1, 0)))
+
+  lua_settop(L, stack)
+
+  return table.unpack(result)  
+end
+
+---Invoke a function with arguments wrapped in a pcall()
+---@param funcName string the name of the function, should be global
+---@param ... any arguments to the function
+---@return value bool,any a boolean indicating success and the return values
+function LuaJITState:pinvoke(funcName, ...)
+  log(VERBOSE, string.format("invoke(%s)", funcName))
+
+  local args = {...}
+
+  local L = self.L
+
+  local serializedArgs = json:encode(args) -- todo: check if no arguments is correctly forwarded here!
+
+  local funcStr = core.CString(funcName)
+  local argsStr = core.CString(serializedArgs)
+
+  local stack = lua_gettop(L)
+
+  local invokeStr = core.CString("_PINVOKE")
+  lua_getfield(L, LUA_GLOBALSINDEX, invokeStr.address)
+  lua_pushstring(L, funcStr.address)
+  lua_pushstring(L, argsStr.address)
+
+  if lua_pcall(L, 2, 1, 0) ~= 0 then -- expect a single value
+    -- Since this means an implementation error, we should reraise the error instead of feeding it to the caller
+    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, lua_tolstring(L, -1, 0))
+    log(ERROR, errorMsg)
+    lua_settop(L, -2) -- pop one value (the error)
+    error(errorMsg)
+  end
+
+  local result = yaml.parse(core.readString(lua_tolstring(L, -1, 0)))
+
+  lua_settop(L, stack)
+
+  return table.unpack(result) 
 end
 
 ---Register require handler. When this state calls require(), this function will be invoked.
