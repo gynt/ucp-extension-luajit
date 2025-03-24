@@ -221,6 +221,7 @@ function LuaJITState:new(params)
   --o:executeFile("ucp/modules/luajit/vendor/json/json.lua", false)
   --lua_setfield(o.L, LUA_GLOBALSINDEX, registerString("json"))
   o:executeFile("ucp/modules/luajit/common/packages.lua")
+  o:executeFile("ucp/modules/luajit/common/serialization.lua")
   o:executeFile("ucp/modules/luajit/common/events.lua")
   o:executeFile("ucp/modules/luajit/common/log.lua")
   o:executeFile("ucp/modules/luajit/common/code.lua")
@@ -230,53 +231,98 @@ end
 
 ---Execute a file (lua script) in the context of this state
 ---@param str string the script to execute
----@param path string the path associated with the script. Is reported in case of errors.
+---@param path string the path associated with the script. Is reported in case of errors
 ---@param cleanup boolean|nil whether to cleanup the lua stack (default)
----@return LuaJITState|number returns depending on cleanup returns self or a number indicating how many stack values to return.
-function LuaJITState:executeString(str, path, cleanup)
+---@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
+---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
+function LuaJITState:executeString(str, path, cleanup, convert)
   local L = self.L
 
-  if cleanup == nil then
+  if cleanup == nil or cleanup == true then
     cleanup = true
+  else
+    cleanup = false
   end
-  local stack = lua_gettop(L) -- store the amount of values on the stack so we can exit cleanly
+  if convert == nil or convert == true then
+    convert = cleanup -- or should we raise an error if cleanup is false, and convert is true?
+  else
+    convert = false
+  end
 
   local cstr = core.CString(str)
 
+  local cleanstack = lua_gettop(L)
+
+  if convert then
+    local f = core.CString("_SERIALIZE")
+    lua_getfield(L, LUA_GLOBALSINDEX, f.address)
+  end
+  
+  local stack = lua_gettop(L) -- store the amount of values on the stack so we can exit cleanly
+
+  -- stack: [_SERIALIZE]
   luaL_loadstring(L, cstr.address)
+  -- stack: [_SERIALIZE], string
   local ret = lua_pcall(L, 0, -1, 0)
+  -- stack: [_SERIALIZE], return values ...
 
   if ret ~= 0 then
+    -- stack: [_SERIALIZE], error message
     log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
     lua_settop(L, stack) -- exit cleanly
     return 0
   end
 
+  -- stack: [_SERIALIZE], return values ...
   local returns = lua_gettop(L) - stack
 
-  log(VERBOSE, string.format("executed: %s", path))
+  log(VERBOSE, string.format("executed: %s, returned %s values", path, returns))
 
   if cleanup then
-    lua_settop(L, stack) -- exit cleanly
+    if convert then
+      if returns > 0 then
+        -- Imagine returns was 2, then the _SERIALIZE is at -3
+        local nargs = -1 * (returns + 1)
+
+        -- stack: [_SERIALIZE], return values ...
+        local serRet = lua_pcall(L, nargs, 1, 0) -- only allow 1 return value (the serialized object)
+        
+        if serRet ~= 0 then
+          -- stack: errorMsg, 
+          log(ERROR, string.format("Fail: Failed to serialize %s", core.readString(lua_tolstring(L, -1, 0))))
+          lua_settop(L, cleanstack)
+          return nil
+        end
+        -- stack: serialized return values, 
+        local result = core.readString(lua_tolstring(L, -1, 0))
+        lua_settop(L, cleanstack)
+        return yaml.parse(result)
+      else
+        lua_settop(L, cleanstack)
+        return nil
+      end
+    end
+    lua_settop(L, cleanstack) -- exit cleanly
     return self
   end
 
-  -- TODO: invent a way to return the results, in json form?
-  -- Otherwise leave it here for convenience usage...
-  return returns -- exit dirty
+  return returns -- exit dirty, meant for raw access to lua C api
 end
 
 ---Execute a file (lua script) in the context of this state
 ---@param path string
 ---@param cleanup boolean|nil whether to cleanup the lua stack (default)
-function LuaJITState:executeFile(path, cleanup)
+---@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
+---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
+function LuaJITState:executeFile(path, cleanup, convert)
   local f, err = io.open(path, 'r')
   if f == nil then
     error(err)
   end
   local contents = f:read("*all")
   f:close()
-  self:executeString(contents, path, cleanup)
+
+  return self:executeString(contents, path, cleanup, convert)
 end
 
 ---Register require handler. When this state calls require(), this function will be invoked.

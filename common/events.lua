@@ -8,7 +8,7 @@ _RECEIVERS = {
 }
 
 _RECEIVE_EVENT = function(key, value)
-  local obj = json.decode(value)
+  local obj = _DESERIALIZE(value)
   local a = _RECEIVERS[key]
 
   if a ~=  nil then
@@ -39,6 +39,6 @@ events = {
   end,
 
   send = function(key, value)
-    _SEND_EVENT(key, json.encode(value))
+    _SEND_EVENT(key, _SERIALIZE(value))
   end,
 }
