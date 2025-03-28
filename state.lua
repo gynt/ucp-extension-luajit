@@ -458,9 +458,22 @@ end
 ---Set a global in the state to a string or number
 ---@param name string
 ---@param value string|number
+---@return LuaJITState state
 function LuaJITState:setGlobal(name, value)
   self:executeString(string.format([[%s = %s]], name, value))
 
+  return self
+end
+
+
+---Set a global in the state to a string or number
+---@param globals table<string, any> map of variable names and values to be set globally
+---@return LuaJITState state
+function LuaJITState:setGlobals(globals)
+  for name, value in pairs(globals) do
+    self:setGlobal(name, value)
+  end
+  
   return self
 end
 
