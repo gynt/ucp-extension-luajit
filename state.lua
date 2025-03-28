@@ -318,7 +318,7 @@ end
 ---@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
 function LuaJITState:executeFile(path, cleanup, convert)
-  local f, err = io.open(path, 'r')
+  local f, err = io.open(io.resolveAliasedPath(path), 'r')
   if f == nil then
     error(err)
   end

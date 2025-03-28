@@ -12,7 +12,7 @@ function luajit:disable(config)
 end
 
 ---Create a new luajit state
----@return LuaJITState
+---@return LuaJITState state
 function luajit:create(params)
   return LuaJITState:new(params)
 end
