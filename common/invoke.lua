@@ -27,3 +27,22 @@ _INVOKE = function(funcName, serializedArgs)
 
     return _SERIALIZE(f())
 end
+
+if _RINVOKE == nil then
+  _RINVOKE = function(funcName, serializedArgs)
+    error("this function should have been substituted by the VM manager")
+  end  
+end
+
+
+remote = {
+  invoke = function(funcName, ...)
+    local serializedArgs = _SERIALIZE(...)
+    local status, serializedResult = _RINVOKE(funcName, serializedArgs)
+    if status ~= true then
+      error(serializedResult)
+    end
+
+    return _DESERIALIZE(serializedResult)
+  end,
+}

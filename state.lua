@@ -22,6 +22,7 @@ local lua_pcall = core.exposeCode(getProcAddress("lua_pcall"), 4, 0)
 local lua_tolstring = core.exposeCode(getProcAddress("lua_tolstring"), 3, 0)
 local lua_settop = core.exposeCode(getProcAddress("lua_settop"), 2, 0)
 local lua_gettop = core.exposeCode(getProcAddress("lua_gettop"), 1,  0)
+local lua_pushboolean = core.exposeCode(getProcAddress("lua_pushboolean"), 2, 0)
 local lua_pushstring = core.exposeCode(getProcAddress("lua_pushstring"), 2, 0)
 local lua_pushcclosure = core.exposeCode(getProcAddress("lua_pushcclosure"), 3, 0)
 local lua_setfield = core.exposeCode(getProcAddress("lua_setfield"), 3, 0)
@@ -91,6 +92,7 @@ local LuaJITState = {}
 ---@field requireHandler fun(self: LuaJITState, path: string): string
 ---@field eventHandlers table<string,table<fun(key: string, obj: any):void>>
 ---@field globals table<string, string|number> table of globals to apply
+---@field interface table<string, fun(...):unknown> table of functions that provide an interface
 local LuaJITStateParameters = {}
 
 ---Create a new LuaJIT state
@@ -100,6 +102,7 @@ local LuaJITStateParameters = {}
 function LuaJITState:new(params)
   local o = {}
   local params = params or {}
+  o.interface = params.interface or {}
     
   setmetatable(o, self)
   self.__index = self
@@ -216,6 +219,47 @@ function LuaJITState:new(params)
     return 0
   end)
 
+  
+  setHookedGlobalFunction(o.L, "_RINVOKE", function(L)
+    local funcName = core.readString(lua_tolstring(L, 1, 0))
+    local serializedArgs = core.readString(lua_tolstring(L, 2, 0))
+
+    log(VERBOSE, string.format("_RINVOKE(%s): %s", funcName, serializedArgs:sub(1, 50)))
+    local deserializedArgs = yaml.parse(serializedArgs)
+    log(VERBOSE, string.format("deserialized: %s", deserializedArgs))
+
+    local f = o.interface[funcName]
+    if f == nil then
+      lua_pushboolean(o.L, 0)
+      local errString = core.CString(string.format("Function with name '%s' does not exist in interface", funcName))
+      lua_pushstring(o.L, errString.address)
+      return 2
+    end
+
+    local results = table.pack(pcall(f, table.unpack({deserializedArgs}))) -- fixme: wrap in {} feels stranged
+    local status = results[1]
+    if status == false then
+      local err = results[2]
+      lua_pushboolean(o.L, 0)
+      local errString = core.CString(string.format("Function with name '%s' failed: %s", funcName, err))
+      lua_pushstring(o.L, errString.address)
+      return 2
+    end
+
+    table.remove(results, 1)
+    results.n = nil
+    if #results == 1 then
+      results = results[1]
+    end
+    local serializedResults = json:encode(results)
+    local pSerializedResults = core.CString(serializedResults)
+
+    lua_pushboolean(o.L, 1)
+    lua_pushstring(o.L, pSerializedResults.address)
+
+    return 2
+  end)
+
   for name, value in pairs(params.globals or {}) do
     o:setGlobal(name, value)
   end
@@ -286,9 +330,9 @@ function LuaJITState:executeString(str, path, cleanup, convert)
 
   
   -- stack: [_SERIALIZE]
-  sizeMapping[cstr.address] = str:len() + 1
-  local pPath = core.CString(path)
   --TODO: use lua_load with a lua_Reader to use the name of the path in error messages
+  -- sizeMapping[cstr.address] = str:len() + 1
+  -- local pPath = core.CString(path)
   --Issue: fixme: Doesn't seem to work nice with the setGlobal() functionality
   -- local loadRet = lua_load(L, ptrLuaReader, cstr.address, pPath.address)
   local loadRet = luaL_loadstring(L, cstr.address)
@@ -434,7 +478,7 @@ function LuaJITState:pinvoke(funcName, ...)
 
   if lua_pcall(L, 2, 1, 0) ~= 0 then -- expect a single value
     -- Since this means an implementation error, we should reraise the error instead of feeding it to the caller
-    local errorMsg = string.format("error in _INVOKE(%s,): %s", funcName, core.readString(lua_tolstring(L, -1, 0)))
+    local errorMsg = string.format("error in _PINVOKE(%s,): %s", funcName, core.readString(lua_tolstring(L, -1, 0)))
     log(ERROR, errorMsg)
     lua_settop(L, -2) -- pop one value (the error)
     error(errorMsg)
