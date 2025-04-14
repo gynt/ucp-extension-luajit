@@ -99,6 +99,7 @@ local LuaJITStateParameters = {}
 ---@return LuaJITState
 function LuaJITState:new(params)
   local o = {}
+  local params = params or {}
     
   setmetatable(o, self)
   self.__index = self
@@ -188,7 +189,6 @@ function LuaJITState:new(params)
   o.eventHandlers = {
     ['log'] = {
       function(key, value)
-        for k,v  in pairs(value) do print(k, v) end
         log(value.logLevel, value.message)
       end,
     },
@@ -198,7 +198,7 @@ function LuaJITState:new(params)
     local key = core.readString(lua_tolstring(L, 1, 0))
     local value = core.readString(lua_tolstring(L, 2, 0))
 
-    log(VERBOSE, string.format("_SEND_EVENT(%s): %s", key, value))
+    log(VERBOSE, string.format("_SEND_EVENT(%s): %s", key, value:sub(1, 50)))
     local obj = yaml.parse(value)
 
     if o.eventHandlers[key] ~= nil then
@@ -228,6 +228,7 @@ function LuaJITState:new(params)
   o:executeFile("ucp/modules/luajit/common/invoke.lua")
   o:executeFile("ucp/modules/luajit/common/log.lua")
   o:executeFile("ucp/modules/luajit/common/code.lua")
+  o:executeFile("ucp/modules/luajit/common/compile.lua")
 
   return o
 end
@@ -326,6 +327,10 @@ function LuaJITState:executeFile(path, cleanup, convert)
   f:close()
 
   return self:executeString(contents, path, cleanup, convert)
+end
+
+function LuaJITState:compileFunction(name, signature, body)
+  return self:invoke("_COMPILE_FUNCTION", name, signature, body)
 end
 
 ---Invoke a function with arguments
