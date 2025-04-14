@@ -13,14 +13,14 @@ end
 
 ---Create a new luajit state
 ---@return LuaJITState state
-function luajit:create(params)
+function luajit:createState(params)
   return LuaJITState:new(params)
 end
 
 return luajit, {
   proxy = {
     ignored = {
-      'create',
+      'createState',
     }
   }
 }
