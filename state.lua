@@ -14,7 +14,7 @@ end
 local LUA_GLOBALSINDEX = -10002
 
 
-
+local lua_load = core.exposeCode(getProcAddress("lua_load"), 4, 0)
 local luaL_newstate = core.exposeCode(getProcAddress("luaL_newstate"), 0, 0)
 local luaL_openlibs = core.exposeCode(getProcAddress("luaL_openlibs"), 1, 0)
 local luaL_loadstring = core.exposeCode(getProcAddress("luaL_loadstring"), 2, 0)
@@ -233,14 +233,31 @@ function LuaJITState:new(params)
   return o
 end
 
+--TODO: use lua_load with a lua_Reader to use the name of the path in error messages
+-- local ptrLuaReader = core.allocateCode({0x90, 0x90, 0x90, 0x90, 0x90, 0xC3})
+-- local sizeMapping = {}
+-- core.hookCode(function(ptrL, pData, pSize)
+--   log(VERBOSE, string.format("luaReader: %s, size: %s", pData, pSize))
+--   local size = sizeMapping[pData]
+--   if size ~= nil and size > 0 then
+--     sizeMapping[pData] = size - size
+--     core.writeInteger(pSize, size)
+--     return pData
+--   end
+--   core.writeInteger(pSize, 0)
+--   return 0
+-- end, ptrLuaReader, 3, 0, 5)
+
 ---Execute a file (lua script) in the context of this state
 ---@param str string the script to execute
----@param path string the path associated with the script. Is reported in case of errors
+---@param path string|nil the path associated with the script. Is reported in case of errors
 ---@param cleanup boolean|nil whether to cleanup the lua stack (default)
 ---@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
 function LuaJITState:executeString(str, path, cleanup, convert)
   local L = self.L
+
+  local path = path or str:sub(1, 20)
 
   if cleanup == nil or cleanup == true then
     cleanup = true
@@ -255,17 +272,34 @@ function LuaJITState:executeString(str, path, cleanup, convert)
 
   local cstr = core.CString(str)
 
-  local cleanstack = lua_gettop(L)
+  -- stack: 
+  local cleanstack = lua_gettop(L)  -- get the amount of values on the stack so we can exit cleanly
 
   if convert then
     local f = core.CString("_SERIALIZE")
+    -- stack: 
     lua_getfield(L, LUA_GLOBALSINDEX, f.address)
+    -- stack: [_SERIALIZE]
   end
   
-  local stack = lua_gettop(L) -- store the amount of values on the stack so we can exit cleanly
+  local stack = lua_gettop(L)  -- get the amount of values on the stack so we know the amount of returns
 
+  
   -- stack: [_SERIALIZE]
-  luaL_loadstring(L, cstr.address)
+  sizeMapping[cstr.address] = str:len() + 1
+  local pPath = core.CString(path)
+  --TODO: use lua_load with a lua_Reader to use the name of the path in error messages
+  --Issue: fixme: Doesn't seem to work nice with the setGlobal() functionality
+  -- local loadRet = lua_load(L, ptrLuaReader, cstr.address, pPath.address)
+  local loadRet = luaL_loadstring(L, cstr.address)
+  if loadRet ~= 0 then
+    -- stack: [_SERIALIZE], error message
+    log(WARNING, string.format(str))
+    log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+    lua_settop(L, cleanstack) -- exit cleanly
+    return 0
+  end
+
   -- stack: [_SERIALIZE], string
   local ret = lua_pcall(L, 0, -1, 0)
   -- stack: [_SERIALIZE], return values ...
@@ -273,7 +307,7 @@ function LuaJITState:executeString(str, path, cleanup, convert)
   if ret ~= 0 then
     -- stack: [_SERIALIZE], error message
     log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
-    lua_settop(L, stack) -- exit cleanly
+    lua_settop(L, cleanstack) -- exit cleanly
     return 0
   end
 
@@ -286,14 +320,15 @@ function LuaJITState:executeString(str, path, cleanup, convert)
     if convert then
       if returns > 0 then
         -- Imagine returns was 2, then the _SERIALIZE is at -3
-        local nargs = -1 * (returns + 1)
+        -- local nargs = -1 * (returns + 1)
 
+        log(VERBOSE, string.format("Serializing %s return values", returns))
         -- stack: [_SERIALIZE], return values ...
-        local serRet = lua_pcall(L, nargs, 1, 0) -- only allow 1 return value (the serialized object)
+        local serRet = lua_pcall(L, returns, 1, 0) -- only allow 1 return value (the serialized object)
         
         if serRet ~= 0 then
           -- stack: errorMsg, 
-          log(ERROR, string.format("Fail: Failed to serialize %s", core.readString(lua_tolstring(L, -1, 0))))
+          log(ERROR, string.format("Fail: Failed to serialize: %s", core.readString(lua_tolstring(L, -1, 0))))
           lua_settop(L, cleanstack)
           return nil
         end
