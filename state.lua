@@ -94,7 +94,7 @@ local LuaJITState = {}
 local LuaJITStateParameters = {}
 
 ---Create a new LuaJIT state
----@param params LuaJITStateParameters parameters for the new state.
+---@param params LuaJITStateParameters|nil parameters for the new state.
 ---@see LuaJITStateParameters
 ---@return LuaJITState
 function LuaJITState:new(params)
