@@ -93,10 +93,10 @@ local LuaJITState = {}
 
 ---@class LuaJITStateParameters
 ---@field name string
----@field requireHandler fun(self: LuaJITState, path: string): string
----@field eventHandlers table<string,table<fun(key: string, obj: any):void>>
----@field globals table<string, string|number> table of globals to apply
----@field interface table<string, fun(...):unknown> table of functions that provide an interface, nested in 'env' and 'extra'
+---@field requireHandler nil|fun(self: LuaJITState, path: string): string
+---@field eventHandlers nil|table<string,table<fun(key: string, obj: any):void>>
+---@field globals nil|table<string, string|number> table of globals to apply
+---@field interface nil|table<string, fun(...):unknown> table of functions that provide an interface, nested in 'env' and 'extra'
 local LuaJITStateParameters = {}
 
 ---Create a new LuaJIT state
