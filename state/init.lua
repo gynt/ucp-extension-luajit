@@ -566,4 +566,17 @@ function LuaJITState:getState()
   return self.L
 end
 
+function LuaJITState:importHeaderString(str, path)
+  local str = string.format("ffi.cdef([[\n%s\n]])", str)
+  self:executeString(str, path)
+end
+
+function LuaJITState:importHeaderFile(path)
+  local handle, err = io.open(path, 'r')
+  if not handle then error(err) end
+  local contents = handle:read("*all")
+  self:importHeaderString(contents, path)
+end
+
+
 return LuaJITState
