@@ -1,3 +1,4 @@
+---Note: this function is also invoked in executeString() in state.lua
 function _SERIALIZE(...)
   local args = {...}
 
@@ -11,11 +12,11 @@ function _SERIALIZE(...)
   return r
 end
 
-function _DESERIALIZE(...)
+function _DESERIALIZE(obj, ...)
   local args = {...}
-  if #args == 1 then
-    return json.decode(...)
+  if #args > 0 then
+    error("_DESERIALIZE with more than 1 arg is deprecated")
   end
 
-  return json.decode(args)
+  return json.decode(obj)
 end
