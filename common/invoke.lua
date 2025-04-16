@@ -6,7 +6,7 @@ _PINVOKE = function(funcName, serializedArgs)
     end
 
     if serializedArgs ~= nil then  -- todo: check if serializedArgs as an empty list is correctly forwarded
-        local deserializedArgs = _DESERIALIZE(serializedArgs)
+        local deserializedArgs = _DESERIALIZE(serializedArgs, false)
         return _SERIALIZE(pcall(f, unpack(deserializedArgs)))
     end
 
@@ -21,7 +21,7 @@ _INVOKE = function(funcName, serializedArgs)
     end
 
     if serializedArgs ~= nil then  -- todo: check if serializedArgs as an empty list is correctly forwarded
-        local deserializedArgs = _DESERIALIZE(serializedArgs)
+        local deserializedArgs = _DESERIALIZE(serializedArgs, false)
         return _SERIALIZE(f(unpack(deserializedArgs)))
     end
 

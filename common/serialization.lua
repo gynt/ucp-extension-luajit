@@ -1,22 +1,28 @@
+---luajit: serialization.lua
+
 ---Note: this function is also invoked in executeString() in state.lua
+
+---Serialize its arguments to a JSON string
+---Arguments are always wrapped into a table
+---Note: this function is also invoked in executeString() in state.lua
+---@return string serialized
 function _SERIALIZE(...)
   local args = {...}
 
-  local r
-  if #args == 1 then
-    r = json:encode(...)
-  else
-    r = json:encode(args)  
-  end
-  
-  return r
+  return json:encode(args)
 end
 
-function _DESERIALIZE(obj, ...)
-  local args = {...}
-  if #args > 0 then
-    error("_DESERIALIZE with more than 1 arg is deprecated")
+---Deserialize the argument 'obj'
+---Unpack the results
+---@param obj unknown
+---@return ... values
+function _DESERIALIZE(obj, packing)
+  if packing == nil then
+    packing = true
   end
-
-  return json:decode(obj)
+  if packing then
+    return unpack(json:decode(obj))  
+  else
+    return json:decode(obj)
+  end
 end

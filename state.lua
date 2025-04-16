@@ -33,6 +33,8 @@ local lua_pushnil = core.exposeCode(getProcAddress("lua_pushnil"), 1, 0)
 local lua_rawseti = core.exposeCode(getProcAddress("lua_rawseti"), 3, 0)
 local p_RECEIVE_EVENT = registerString("_RECEIVE_EVENT")
 
+local serialization = require("serialization")
+
 local function createState()
   local L = luaL_newstate()
   luaL_openlibs(L)
@@ -202,7 +204,7 @@ function LuaJITState:new(params)
     local value = core.readString(lua_tolstring(L, 2, 0))
 
     log(VERBOSE, string.format("_SEND_EVENT(%s): %s", key, value:sub(1, 50)))
-    local obj = yaml.parse(value)
+    local obj = serialization.deserialize(value)
 
     if o.eventHandlers[key] ~= nil then
       for k, f in ipairs(o.eventHandlers[key]) do
@@ -225,7 +227,7 @@ function LuaJITState:new(params)
     local serializedArgs = core.readString(lua_tolstring(L, 2, 0))
 
     log(VERBOSE, string.format("_RINVOKE(%s): %s", funcName, serializedArgs:sub(1, 50)))
-    local deserializedArgs = yaml.parse(serializedArgs)
+    local deserializedArgs = serialization.deserialize(serializedArgs, false)
     log(VERBOSE, string.format("deserialized: %s", deserializedArgs))
 
     local f = o.interface[funcName]
@@ -236,7 +238,7 @@ function LuaJITState:new(params)
       return 2
     end
 
-    local results = table.pack(pcall(f, table.unpack({deserializedArgs}))) -- fixme: wrap in {} feels stranged
+    local results = table.pack(pcall(f, table.unpack(deserializedArgs)))
     local status = results[1]
     if status == false then
       local err = results[2]
@@ -246,12 +248,7 @@ function LuaJITState:new(params)
       return 2
     end
 
-    table.remove(results, 1)
-    results.n = nil
-    if #results == 1 then
-      results = results[1]
-    end
-    local serializedResults = json:encode(results)
+    local serializedResults = serialization.serialize(select(2, table.unpack(results)))
     local pSerializedResults = core.CString(serializedResults)
 
     lua_pushboolean(o.L, 1)
@@ -379,7 +376,7 @@ function LuaJITState:executeString(str, path, cleanup, convert)
         -- stack: serialized return values, 
         local result = core.readString(lua_tolstring(L, -1, 0))
         lua_settop(L, cleanstack)
-        return yaml.parse(result)
+        return serialization.deserialize(result)
       else
         lua_settop(L, cleanstack)
         return nil
@@ -423,7 +420,7 @@ function LuaJITState:invoke(funcName, ...)
 
   local L = self.L
 
-  local serializedArgs = json:encode(args) -- todo: check if no arguments is correctly forwarded here!
+  local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
   log(VERBOSE, string.format("invoke: %s(%s)", funcName, serializedArgs))
 
   local funcStr = core.CString(funcName)
@@ -446,7 +443,7 @@ function LuaJITState:invoke(funcName, ...)
 
   local serializedRet = core.readString(lua_tolstring(L, -1, 0))
   log(VERBOSE, string.format("invoke: %s() => %s", funcName, serializedRet))
-  local result = yaml.parse(serializedRet)
+  local result = serialization.deserialize(serializedRet, false)
 
   lua_settop(L, stack)
 
@@ -464,7 +461,7 @@ function LuaJITState:pinvoke(funcName, ...)
 
   local L = self.L
 
-  local serializedArgs = json:encode(args) -- todo: check if no arguments is correctly forwarded here!
+  local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
 
   local funcStr = core.CString(funcName)
   local argsStr = core.CString(serializedArgs)
@@ -484,7 +481,7 @@ function LuaJITState:pinvoke(funcName, ...)
     error(errorMsg)
   end
 
-  local result = yaml.parse(core.readString(lua_tolstring(L, -1, 0)))
+  local result = serialization.deserialize(core.readString(lua_tolstring(L, -1, 0)), false)
 
   lua_settop(L, stack)
 
@@ -505,7 +502,7 @@ function LuaJITState:sendEvent(key, obj)
 
   local L = self.L
 
-  local value = json:encode(obj)
+  local value = serialization.serialize(obj)
 
   local keyStr = core.CString(key)
   local valueStr = core.CString(value)
@@ -517,7 +514,7 @@ function LuaJITState:sendEvent(key, obj)
   lua_pushstring(L, valueStr.address)
 
   if lua_pcall(L, 2, 0, 0) ~= 0 then
-    log(ERROR, string.format("error in _RECEIVE_EVENT(): %s", lua_tolstring(L, -1, 0)))
+    log(ERROR, string.format("error in _RECEIVE_EVENT(): %s", core.readString(lua_tolstring(L, -1, 0))))
     lua_settop(L, -2) -- pop one value (the error)
   end
 
