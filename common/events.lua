@@ -30,7 +30,9 @@ if _SEND_EVENT == nil then
   end
 end
 
-events = {
+if remote == nil then remote = {} end
+
+remote.events = {
   receive = function(key, func)
     if _RECEIVERS[key] == nil then
       _RECEIVERS[key] = {}
