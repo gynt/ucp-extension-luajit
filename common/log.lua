@@ -1,3 +1,4 @@
+--luajit: log.lua
 local f = io.open("ucp/.cache/luajit.log", 'w')
 
 if f == nil then
@@ -23,7 +24,7 @@ function log(logLevel, ...)
   f:write(msg)
   f:flush()
 
-  events.send('log', {
+  remote.events.send('log', {
     logLevel = logLevel,
     message = msg,
   })

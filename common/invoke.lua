@@ -34,18 +34,17 @@ if _RINVOKE == nil then
   end  
 end
 
+if remote == nil then remote = {} end
 
-remote = {
-  invoke = function(funcName, ...)
-    local serializedArgs = _SERIALIZE(...)
-    local status, serializedResult = _RINVOKE(funcName, serializedArgs)
-    if status ~= true then
-      error(serializedResult)
-    end
+remote.invoke = function(funcName, ...)
+  local serializedArgs = _SERIALIZE(...)
+  local status, serializedResult = _RINVOKE(funcName, serializedArgs)
+  if status ~= true then
+    error(serializedResult)
+  end
 
-    return _DESERIALIZE(serializedResult)
-  end,
-}
+  return _DESERIALIZE(serializedResult)
+end
 
 
 function _CREATE_RF_INTERFACE(key)
