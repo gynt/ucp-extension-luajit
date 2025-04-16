@@ -83,6 +83,8 @@ local function registerPreloader(L, preloader)
   -- stack: 
 end
 
+local ProxyInterface = require("state/finterface")
+
 ---@class LuaJITState
 ---@field requireHandlers table<fun(self: LuaJITState, path: string): string>
 ---@private L number pointer to the lua state
@@ -94,7 +96,7 @@ local LuaJITState = {}
 ---@field requireHandler fun(self: LuaJITState, path: string): string
 ---@field eventHandlers table<string,table<fun(key: string, obj: any):void>>
 ---@field globals table<string, string|number> table of globals to apply
----@field interface table<string, fun(...):unknown> table of functions that provide an interface
+---@field interface table<string, fun(...):unknown> table of functions that provide an interface, nested in 'env' and 'extra'
 local LuaJITStateParameters = {}
 
 ---Create a new LuaJIT state
@@ -104,7 +106,7 @@ local LuaJITStateParameters = {}
 function LuaJITState:new(params)
   local o = {}
   local params = params or {}
-  o.interface = params.interface or {}
+  o.interface = ProxyInterface:new(params.interface or {})
     
   setmetatable(o, self)
   self.__index = self
@@ -230,7 +232,7 @@ function LuaJITState:new(params)
     local deserializedArgs = serialization.deserialize(serializedArgs, false)
     log(VERBOSE, string.format("deserialized: %s", deserializedArgs))
 
-    local f = o.interface[funcName]
+    local f = o.interface:resolve(funcName)
     if f == nil then
       lua_pushboolean(o.L, 0)
       local errString = core.CString(string.format("Function with name '%s' does not exist in interface", funcName))

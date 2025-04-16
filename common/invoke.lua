@@ -46,3 +46,24 @@ remote = {
     return _DESERIALIZE(serializedResult)
   end,
 }
+
+
+function _CREATE_RF_INTERFACE(key)
+  return setmetatable({}, {
+    __index = function(self, k)
+      if key == nil then
+        return _CREATE_RF_INTERFACE(k)
+      end
+
+      return _CREATE_RF_INTERFACE(string.format("%s.%s", key, k))
+    end,
+    __call = function(self, ...)
+      return remote.invoke(key, ...)
+    end,
+    __newindex = function(self, key, value)
+      error('illegal')
+    end,
+  })
+end
+
+remote.interface = _CREATE_RF_INTERFACE()
