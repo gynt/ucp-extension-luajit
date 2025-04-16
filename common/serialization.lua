@@ -4,9 +4,9 @@ function _SERIALIZE(...)
 
   local r
   if #args == 1 then
-    r = json.encode(...)
+    r = json:encode(...)
   else
-    r = json.encode(args)  
+    r = json:encode(args)  
   end
   
   return r
@@ -18,5 +18,5 @@ function _DESERIALIZE(obj, ...)
     error("_DESERIALIZE with more than 1 arg is deprecated")
   end
 
-  return json.decode(obj)
+  return json:decode(obj)
 end
