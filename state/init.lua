@@ -31,6 +31,10 @@ local lua_objlen = core.exposeCode(getProcAddress("lua_objlen"), 2, 0)
 local lua_rawgeti = core.exposeCode(getProcAddress("lua_rawgeti"), 3, 0)
 local lua_pushnil = core.exposeCode(getProcAddress("lua_pushnil"), 1, 0)
 local lua_rawseti = core.exposeCode(getProcAddress("lua_rawseti"), 3, 0)
+-- local LUA_REGISTRYINDEX	= -10000 -- special LUAJIT value
+-- local luaL_ref = core.exposeCode(getProcAddress("luaL_ref"), 2, 0)
+-- local luaL_unref = core.exposeCode(getProcAddress("luaL_unref"), 3, 0)
+-- local lua_pushvalue = core.exposeCode(getProcAddress("lua_pushvalue"), 2, 0)
 local p_RECEIVE_EVENT = registerString("_RECEIVE_EVENT")
 
 local serialization = require("state/serialization")
@@ -39,6 +43,8 @@ local function createState()
   local L = luaL_newstate()
   luaL_openlibs(L)
 
+  log(VERBOSE, string.format("VM: createState: lua_gettop() = %s", lua_gettop(L)))
+  
   return L
 end
 
@@ -50,6 +56,8 @@ local function createLuaFunctionHook(func)
 end
 
 local function setHookedGlobalFunction(L, name, func)
+  log(VERBOSE, string.format("VM: setHookedGlobalFunction: lua_gettop() = %s", lua_gettop(L)))
+
   local pHook = core.allocateCode({0x90, 0x90, 0x90, 0x90, 0x90, 0xC3})
   core.hookCode(func, pHook, 1, 0, 5)
 
@@ -58,6 +66,8 @@ local function setHookedGlobalFunction(L, name, func)
 end
 
 local function registerPreloader(L, preloader)
+  log(VERBOSE, string.format("VM: registerPreLoader: lua_gettop() = %s", lua_gettop(L)))
+
   local pPreloader = createLuaFunctionHook(preloader)
 
   -- stack:
@@ -143,6 +153,8 @@ function LuaJITState:new(params)
   o.loaded = {} -- contains the loaded modules
 
   local loader = function(L)
+    log(VERBOSE, string.format("VM: loader: lua_gettop() = %s", lua_gettop(L)))
+
     local pPath = lua_tolstring(L, 1, 0)
     local path = core.readString(pPath)
     log(VERBOSE, string.format("loader(): %s", path))
@@ -156,6 +168,8 @@ function LuaJITState:new(params)
   local pLoader = createLuaFunctionHook(loader)
 
   local preloader = function(L)
+    log(VERBOSE, string.format("VM: preloader: lua_gettop() = %s", lua_gettop(L)))
+
     local stack = lua_gettop(L)
     -- This is called when the module isn't loaded yet
     local pPath = lua_tolstring(L, 1, 0)
@@ -202,6 +216,8 @@ function LuaJITState:new(params)
   }
 
   setHookedGlobalFunction(o.L, "_SEND_EVENT", function(L)
+    log(VERBOSE, string.format("VM: _SEND_EVENT: lua_gettop() = %s", lua_gettop(L)))
+
     local key = core.readString(lua_tolstring(L, 1, 0))
     local value = core.readString(lua_tolstring(L, 2, 0))
 
@@ -225,6 +241,8 @@ function LuaJITState:new(params)
 
   
   setHookedGlobalFunction(o.L, "_RINVOKE", function(L)
+    log(VERBOSE, string.format("VM: _RINVOKE: lua_gettop() = %s", lua_gettop(L)))
+
     local funcName = core.readString(lua_tolstring(L, 1, 0))
     local serializedArgs = core.readString(lua_tolstring(L, 2, 0))
 
@@ -273,6 +291,8 @@ function LuaJITState:new(params)
   o:executeFile("ucp/modules/luajit/common/code.lua")
   o:executeFile("ucp/modules/luajit/common/compile.lua")
 
+  log(VERBOSE, string.format("VM: new (end): lua_gettop() = %s", lua_gettop(o.L)))
+
   return o
 end
 
@@ -299,6 +319,7 @@ end
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
 function LuaJITState:executeString(str, path, cleanup, convert)
   local L = self.L
+  log(VERBOSE, string.format("VM: executeString: lua_gettop() = %s", lua_gettop(L)))
 
   local path = path or str:sub(1, 20)
 
@@ -411,6 +432,17 @@ function LuaJITState:compileFunction(name, signature, body)
   return self:invoke("_COMPILE_FUNCTION", name, signature, body)
 end
 
+function LuaJITState:compileFunctionFromFile(name, signature, path)
+  local f, err = io.open(path, 'r')
+  if f == nil then
+    error(err)
+  end
+  local body = f:read("*all")
+  f:close()
+
+  return self:invoke("_COMPILE_FUNCTION", name, signature, body)
+end
+
 ---Invoke a function with arguments
 ---@param funcName string the name of the function, should be global
 ---@param ... any arguments to the function
@@ -421,6 +453,8 @@ function LuaJITState:invoke(funcName, ...)
   local args = {...}
 
   local L = self.L
+
+  log(VERBOSE, string.format("VM: invoke: lua_gettop() = %s", lua_gettop(L)))
 
   local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
   log(VERBOSE, string.format("invoke: %s(%s)", funcName, serializedArgs))
@@ -463,6 +497,8 @@ function LuaJITState:pinvoke(funcName, ...)
 
   local L = self.L
 
+  log(VERBOSE, string.format("VM: pinvoke: lua_gettop() = %s", lua_gettop(L)))
+
   local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
 
   local funcStr = core.CString(funcName)
@@ -503,6 +539,8 @@ function LuaJITState:sendEvent(key, obj)
   log(VERBOSE, string.format("sendEvent(): key = %s", key))
 
   local L = self.L
+
+  log(VERBOSE, string.format("VM: sendEvent: lua_gettop() = %s", lua_gettop(L)))
 
   local value = serialization.serialize(obj)
 
@@ -566,6 +604,10 @@ function LuaJITState:getState()
   return self.L
 end
 
+function LuaJITState:getLuaGetTop()
+  return lua_gettop(self.L)
+end
+
 function LuaJITState:importHeaderString(str, path)
   local str = string.format("ffi.cdef([[\n%s\n]])", str)
   self:executeString(str, path)
@@ -577,6 +619,5 @@ function LuaJITState:importHeaderFile(path)
   local contents = handle:read("*all")
   self:importHeaderString(contents, path)
 end
-
 
 return LuaJITState

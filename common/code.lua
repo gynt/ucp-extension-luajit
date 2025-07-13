@@ -43,3 +43,26 @@ end
 
 --   ffi.C.VirtualProtect(ffi.cast("void*", address), 4, pOldProtect[0], pOldOldProtect)
 -- end
+
+
+if _G._LUAJIT_REGISTRY == nil then
+  _G._LUAJIT_REGISTRY = {}
+end
+
+-- Avoid garbage collection
+function registerObject(obj)
+  
+
+  _G._LUAJIT_REGISTRY[obj] = true
+
+  return obj
+end
+
+function deregisterObject(obj)
+
+  if _G._LUAJIT_REGISTRY[obj] == true then
+    _G._LUAJIT_REGISTRY[obj] = nil
+  end
+  
+  return obj
+end
