@@ -527,7 +527,7 @@ function LuaJITState:pinvoke(funcName, ...)
 end
 
 ---Register require handler. When this state calls require(), this function will be invoked.
----@param func fun(path: string): string
+---@param func fun(self: LuaJITState, path: string): string
 function LuaJITState:registerRequireHandler(func)
   table.insert(self.requireHandlers, 1, func)
 end
