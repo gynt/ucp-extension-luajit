@@ -152,6 +152,8 @@ function LuaJITState:new(params)
 
   o.loaded = {} -- contains the loaded modules
 
+  ---TODO: improve this situation because it now doesn't realize if the same is loaded if the path is
+  ---only slightly different, and clashes if modules that share state require the same file accidentally
   local loader = function(L)
     log(VERBOSE, string.format("VM: loader: lua_gettop() = %s", lua_gettop(L)))
 

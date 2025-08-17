@@ -5,7 +5,12 @@ local LuaJITState = require("state")
 local luajit = {}
 
 function luajit:enable(config)
-
+  local cTests = config.tests or {}
+  if cTests.test == nil or cTests.test == true then
+    log(WARNING, "running tests")
+    local state = self:createState()
+    state:executeFile("ucp/modules/luajit/tests/test.lua", true, false)
+  end
 end
 
 function luajit:disable(config)
