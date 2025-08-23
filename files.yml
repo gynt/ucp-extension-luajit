@@ -2,5 +2,9 @@ files:
   - src: vendor/luajit/src/lua51.dll
   - src: vendor/json/json.lua
     dst: vendor/json/json.lua
-  - src: "common/*.lua"
-    dst: "common/"
+  - src: "common"
+  - src: "locale"
+  - src: "state"
+  - src: "tests"
+  - src: "*.lua"
+  - src: "definition.yml"
