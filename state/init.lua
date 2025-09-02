@@ -130,13 +130,14 @@ function LuaJITState:new(params)
 
   o.requireHandlers = {
     function(s, path)
-      local handle, err = io.open(string.format("ucp/modules/luajit/%s.lua", path))
+      local err2
+      local handle, err1 = io.open(string.format("ucp/modules/luajit/%s.lua", path))
       if not handle then
-        handle, err = io.open(string.format("ucp/modules/luajit/%s/init.lua", path))
+        handle, err2 = io.open(string.format("ucp/modules/luajit/%s/init.lua", path))
       end
     
       if not handle then
-        error( err)
+        error( string.format("%s\n%s", err1, err2))
       end
     
       local contents = handle:read("*all")
