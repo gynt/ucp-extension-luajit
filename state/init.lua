@@ -251,27 +251,36 @@ function LuaJITState:new(params)
 
     log(VERBOSE, string.format("_RINVOKE(%s): %s", funcName, serializedArgs:sub(1, 50)))
     local deserializedArgs = serialization.deserialize(serializedArgs, false)
-    log(VERBOSE, string.format("deserialized: %s", deserializedArgs))
+    log(VERBOSE, string.format("_RINVOKE: deserialized: %s", deserializedArgs))
 
+    log(VERBOSE, string.format("_RINVOKE: resolving: %s", funcName))
     local f = o.interface:resolve(funcName)
     if f == nil then
+      log(VERBOSE, string.format("_RINVOKE: resolving failed for: %s", funcName))
       lua_pushboolean(o.L, 0)
       local errString = core.CString(string.format("Function with name '%s' does not exist in interface", funcName))
       lua_pushstring(o.L, errString.address)
       return 2
     end
 
+    log(VERBOSE, string.format("_RINVOKE: pcall: %s with n args: %s", f, #deserializedArgs))
     local results = table.pack(pcall(f, table.unpack(deserializedArgs)))
+    log(VERBOSE, string.format("_RINVOKE: pcall: results count: %s", #results))
     local status = results[1]
     if status == false then
-      local err = results[2]
+      log(VERBOSE, string.format("_RINVOKE: pcall: failed"))
+      local err = results[2] or "error message is missing"
+      local errMsg = string.format("Function with name '%s' failed: %s", tostring(funcName), tostring(err))
+      log(VERBOSE, string.format("_RINVOKE: pcall: failed: reason:\n%s", errMsg))
+      local errString = core.CString(errMsg)
       lua_pushboolean(o.L, 0)
-      local errString = core.CString(string.format("Function with name '%s' failed: %s", funcName, err))
       lua_pushstring(o.L, errString.address)
       return 2
     end
 
+    log(VERBOSE, string.format("_RINVOKE: serializing results"))
     local serializedResults = serialization.serialize(select(2, table.unpack(results)))
+    log(VERBOSE, string.format("_RINVOKE: serialized results: %s", serializedResults:sub(1, 50)))
     local pSerializedResults = core.CString(serializedResults)
 
     lua_pushboolean(o.L, 1)
