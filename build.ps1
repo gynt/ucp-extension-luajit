@@ -10,4 +10,4 @@ Pop-Location
 Push-Location exceptions\luajitexceptions
 msbuild /t:restore /p:RestoreAdditionalProjectSources="$UCP3Path"
 msbuild /p:Configuration=$BuildType
-
+Pop-Location
