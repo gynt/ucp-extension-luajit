@@ -7,6 +7,9 @@ if luajitdll == false or luajitdll == nil then
   error(err)
 end
 
+local luajitexceptionsAddress = require("luajitexceptions.dll")
+local init_exceptionsHandler = core.exposeCode(luajitexceptionsAddress, 1, 0)
+
 local function getProcAddress(funcName)
   return luajitdll:getProcAddress(funcName)
 end
@@ -42,6 +45,7 @@ local serialization = require("state/serialization")
 local function createState()
   local L = luaL_newstate()
   luaL_openlibs(L)
+  init_exceptionsHandler(L)
 
   log(VERBOSE, string.format("VM: createState: lua_gettop() = %s", lua_gettop(L)))
   
