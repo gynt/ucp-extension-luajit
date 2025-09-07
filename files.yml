@@ -1,8 +1,10 @@
+meta:
+  version: 1.0.0
 files:
   - src: vendor/luajit/src/lua51.dll
   - src: exceptions/luajitexceptions/Release/luajitexceptions.dll
-  - src: vendor/json/json.lua
-    dst: vendor/json/json.lua
+  - src: vendor/json/JSON.lua
+    target: vendor/json/
   - src: "common"
   - src: "locale"
   - src: "state"
