@@ -1,5 +1,6 @@
 files:
   - src: vendor/luajit/src/lua51.dll
+  - src: exceptions/luajitexceptions/luajitexceptions.dll
   - src: vendor/json/json.lua
     dst: vendor/json/json.lua
   - src: "common"

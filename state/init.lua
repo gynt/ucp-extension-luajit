@@ -1,7 +1,7 @@
 local yaml = yaml
 local registerString = core.registerString
 
-local luajitdll, err = core.openLibraryHandle("ucp/modules/luajit/luajit.dll")
+local luajitdll, err = core.openLibraryHandle("ucp/modules/luajit/lua51.dll")
 
 if luajitdll == false or luajitdll == nil then
   error(err)
