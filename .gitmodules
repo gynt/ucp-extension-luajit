@@ -1,3 +1,7 @@
 [submodule "vendor/json"]
 	path = vendor/json
 	url = https://github.com/tiye/json-lua
+[submodule "vendor/luajit"]
+	path = vendor/luajit
+	url = https://github.com/gynt/LuaJIT
+	branch = v2.1-ucp-extension
