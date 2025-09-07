@@ -1,3 +1,3 @@
-pushd vendor\luajit\src
+Push-Location vendor\luajit\src
 .\msvcbuild.bat
-popd
+Pop-Location
