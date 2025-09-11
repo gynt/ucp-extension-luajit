@@ -11,3 +11,4 @@ files:
   - src: "tests"
   - src: "*.lua"
   - src: "definition.yml"
+  - src: "options.yml"
