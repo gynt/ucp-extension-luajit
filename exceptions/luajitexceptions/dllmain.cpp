@@ -87,7 +87,7 @@ static bool loadLibrary(std::string& errorMsg) {
     luajit_lua_pushlightuserdata = (void  (*)(void* L, void* p)) ucp_getProcAddressFromLibraryInModule("luajit", "lua51", "lua_pushlightuserdata", errorMsg);
     if (luajit_lua_pushlightuserdata == NULL) return false;
 
-    luajit_lua_settop = (void  (*)(void* L, int idx)) ucp_getProcAddressFromLibraryInModule("luajit", "lua51", "luajit_lua_settop", errorMsg);
+    luajit_lua_settop = (void  (*)(void* L, int idx)) ucp_getProcAddressFromLibraryInModule("luajit", "lua51", "lua_settop", errorMsg);
     if (luajit_lua_settop == NULL) return false;
 
     luaJIT_setmode = (int (*)(void* L, int idx, int mode)) ucp_getProcAddressFromLibraryInModule("luajit", "lua51", "luaJIT_setmode", errorMsg);
