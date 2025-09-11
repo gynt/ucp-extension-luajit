@@ -188,7 +188,7 @@ function LuaJITState:new(params)
 
     local contents = o.loaded[path] -- filled from the preloader() call
     log(VVERBOSE, string.format("loader(): executing prefilled data (length: %d)", string.len(contents)))
-    local returnValues = o:executeString(contents, path, false)
+    local returnValues = o:executeString(contents, path, false, false)
 
     log(VVERBOSE, string.format("VM: loader: end: lua_gettop() = %s", lua_gettop(L)))
     return returnValues -- just return whatever the execute gave us
@@ -353,27 +353,29 @@ end
 --   return 0
 -- end, ptrLuaReader, 3, 0, 5)
 
----Execute a file (lua script) in the context of this state
+---Execute a file (lua script) in the context of this luajit state
 ---@param str string the script to execute
 ---@param path string|nil the path associated with the script. Is reported in case of errors
----@param cleanup boolean|nil whether to cleanup the lua stack (default)
----@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
+---@param convert boolean|nil whether to return a (serialized and deserialized) value and cleanup the stack (default is false)
+---@param cleanup boolean|nil if not converting, whether to cleanup the luajit stack
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
-function LuaJITState:executeString(str, path, cleanup, convert)
+function LuaJITState:executeString(str, path, convert, cleanup)
   local L = self.L
   log(VVERBOSE, string.format("VM: executeString: lua_gettop() = %s", lua_gettop(L)))
 
   local path = path or str:sub(1, 20)
 
-  if cleanup == nil or cleanup == true then
-    cleanup = true
-  else
-    cleanup = false
-  end
-  if convert == nil or convert == true then
-    convert = cleanup -- or should we raise an error if cleanup is false, and convert is true?
-  else
+  if convert == nil or convert == false then
     convert = false
+    if cleanup == nil then
+      cleanup = true
+    end
+  else
+    convert = true
+    if cleanup == false then
+      error("executeString(): incompatible arguments: cannot convert without cleanup")
+    end
+    cleanup = true
   end
 
   local cstr = core.CString(str)
@@ -456,10 +458,10 @@ end
 
 ---Execute a file (lua script) in the context of this state
 ---@param path string
----@param cleanup boolean|nil whether to cleanup the lua stack (default)
----@param convert boolean|nil if cleanup, whether to return a serialized and deserialized return value (default)
+---@param convert boolean|nil whether to return a (serialized and deserialized) value (default is false)
+---@param cleanup boolean|nil if not converting, whether to cleanup the luajit stack (default is true)
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
-function LuaJITState:executeFile(path, cleanup, convert)
+function LuaJITState:executeFile(path, convert, cleanup)
   local f, err = io.open(io.resolveAliasedPath(path), 'r')
   if f == nil then
     error(err)
@@ -467,7 +469,7 @@ function LuaJITState:executeFile(path, cleanup, convert)
   local contents = f:read("*all")
   f:close()
 
-  return self:executeString(contents, path, cleanup, convert)
+  return self:executeString(contents, path, convert, cleanup)
 end
 
 function LuaJITState:compileFunction(name, signature, body)

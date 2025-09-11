@@ -10,7 +10,7 @@ function luajit:enable(config)
   if cTests.test == nil or cTests.test == true then
     log(WARNING, "running tests")
     local state = self:createState()
-    state:executeFile("ucp/modules/luajit/tests/test.lua", true, false)
+    state:executeFile("ucp/modules/luajit/tests/test.lua")
   end
 end
 
