@@ -1,4 +1,5 @@
 local yaml = yaml
+local VVERBOSE = 3
 local registerString = core.registerString
 
 local luajitdll, err = core.openLibraryHandle("ucp/modules/luajit/lua51.dll")
@@ -42,11 +43,21 @@ local p_RECEIVE_EVENT = registerString("_RECEIVE_EVENT")
 
 local serialization = require("state/serialization")
 
+local globalConfig = {
+  debugging = {
+    lowLevelExceptions = {
+      enabled = false,
+    }
+  }
+}
+
 local function createState()
   local L = luaL_newstate()
   luaL_openlibs(L)
   --fixme: reenable
-  -- init_exceptionsHandler(L)
+  if globalConfig.debugging.lowLevelExceptions.enabled == true then
+    init_exceptionsHandler(L)
+  end
 
   log(VERBOSE, string.format("VM: createState: lua_gettop() = %s", lua_gettop(L)))
   
@@ -61,10 +72,10 @@ local function createLuaFunctionHook(func)
 end
 
 local function setHookedGlobalFunction(L, name, func)
-  log(VERBOSE, string.format("VM: setHookedGlobalFunction: lua_gettop(0x%X) = %s", L, lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: setHookedGlobalFunction: lua_gettop(0x%X) = %s", L, lua_gettop(L)))
 
   local pHook = core.allocateCode({0x90, 0x90, 0x90, 0x90, 0x90, 0xC3})
-  log(VERBOSE, string.format("VM: setHookedGlobalFunction: hook @ 0x%X", pHook))
+  log(VVERBOSE, string.format("VM: setHookedGlobalFunction: hook @ 0x%X", pHook))
   core.hookCode(func, pHook, 1, 0, 5)
 
   lua_pushcclosure(L, pHook, 0)
@@ -72,7 +83,7 @@ local function setHookedGlobalFunction(L, name, func)
 end
 
 local function registerPreloader(L, preloader)
-  log(VERBOSE, string.format("VM: registerPreLoader: lua_gettop() = %s", lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: registerPreLoader: lua_gettop() = %s", lua_gettop(L)))
 
   local pPreloader = createLuaFunctionHook(preloader)
 
@@ -115,6 +126,10 @@ local LuaJITState = {}
 ---@field interface nil|table<string, fun(...):unknown> table of functions that provide an interface, nested in 'env' and 'extra'
 local LuaJITStateParameters = {}
 
+function LuaJITState:setGlobalConfig(config)
+  globalConfig = config
+end
+
 ---Create a new LuaJIT state
 ---@param params LuaJITStateParameters|nil parameters for the new state.
 ---@see LuaJITStateParameters
@@ -146,10 +161,10 @@ function LuaJITState:new(params)
         error( string.format("%s\n%s", err1, err2))
       end
     
-      log(VERBOSE, string.format("require: reading contents of: %s", handle))
+      log(VVERBOSE, string.format("require: reading contents of: %s", handle))
       local contents = handle:read("*all")
       handle:close()
-      log(VERBOSE, string.format("require: finished reading contents of: %s", handle))
+      log(VVERBOSE, string.format("require: finished reading contents of: %s", handle))
 
       return contents
     end,
@@ -164,31 +179,31 @@ function LuaJITState:new(params)
   ---TODO: improve this situation because it now doesn't realize if the same is loaded if the path is
   ---only slightly different, and clashes if modules that share state require the same file accidentally
   local loader = function(L)
-    log(VERBOSE, string.format("VM: loader: lua_gettop() = %s", lua_gettop(L)))
+    log(VVERBOSE, string.format("VM: loader: lua_gettop() = %s", lua_gettop(L)))
 
-    log(VERBOSE, "VM: loader: getting path string")
+    log(VVERBOSE, "VM: loader: getting path string")
     local pPath = lua_tolstring(L, 1, 0)
     local path = core.readString(pPath)
-    log(VERBOSE, string.format("loader(): %s", path))
+    log(VVERBOSE, string.format("loader(): %s", path))
 
     local contents = o.loaded[path] -- filled from the preloader() call
-    log(VERBOSE, string.format("loader(): executing prefilled data (length: %d)", string.len(contents)))
+    log(VVERBOSE, string.format("loader(): executing prefilled data (length: %d)", string.len(contents)))
     local returnValues = o:executeString(contents, path, false)
 
-    log(VERBOSE, string.format("VM: loader: end: lua_gettop() = %s", lua_gettop(L)))
+    log(VVERBOSE, string.format("VM: loader: end: lua_gettop() = %s", lua_gettop(L)))
     return returnValues -- just return whatever the execute gave us
   end
 
   local pLoader = createLuaFunctionHook(loader)
 
   local preloader = function(L)
-    log(VERBOSE, string.format("VM: preloader: lua_gettop() = %s", lua_gettop(L)))
+    log(VVERBOSE, string.format("VM: preloader: lua_gettop() = %s", lua_gettop(L)))
 
     local stack = lua_gettop(L)
     -- This is called when the module isn't loaded yet
     local pPath = lua_tolstring(L, 1, 0)
     local path = core.readString(pPath)
-    log(VERBOSE, string.format("preloader(): %s", path))
+    log(VVERBOSE, string.format("preloader(): %s", path))
 
     local result = ""
     
@@ -198,7 +213,7 @@ function LuaJITState:new(params)
 
       if status == false or status == nil then
         result = result .. "\n" .. error_or_contents
-        log(VERBOSE, error_or_contents)
+        log(VVERBOSE, error_or_contents)
 
       else
         -- store contents for later
@@ -230,25 +245,25 @@ function LuaJITState:new(params)
   }
 
   setHookedGlobalFunction(o.L, "_SEND_EVENT", function(L)
-    log(VERBOSE, string.format("VM: _SEND_EVENT: lua_gettop() = %s", lua_gettop(L)))
+    log(VVERBOSE, string.format("VM: _SEND_EVENT: lua_gettop() = %s", lua_gettop(L)))
 
     local key = core.readString(lua_tolstring(L, 1, 0))
     local value = core.readString(lua_tolstring(L, 2, 0))
 
-    log(VERBOSE, string.format("_SEND_EVENT(%s): %s", key, value:sub(1, 50)))
+    log(VVERBOSE, string.format("_SEND_EVENT(%s): %s", key, value:sub(1, 50)))
     local obj = serialization.deserialize(value)
-    log(VERBOSE, string.format("_SEND_EVENT: deserialized obj"))
+    log(VVERBOSE, string.format("_SEND_EVENT: deserialized obj"))
 
     if o.eventHandlers[key] ~= nil then
-      log(VERBOSE, string.format("_SEND_EVENT: has handler"))
+      log(VVERBOSE, string.format("_SEND_EVENT: has handler"))
       for k, f in ipairs(o.eventHandlers[key]) do
-        log(VERBOSE, string.format("receive(): firing function for: %s", key))
+        log(VVERBOSE, string.format("receive(): firing function for: %s", key))
         local result, err_or_ret = pcall(f, key, obj)
-        log(VERBOSE, string.format("receive(): fired function for: %s", key))
+        log(VVERBOSE, string.format("receive(): fired function for: %s", key))
         if not result then 
           log(ERROR, err_or_ret)
         end
-        log(VERBOSE, string.format("receive(): fired function for: %s succesfully", key))
+        log(VVERBOSE, string.format("receive(): fired function for: %s succesfully", key))
       end
     else
       log(WARNING, string.format("No callbacks for %s", key))
@@ -259,43 +274,43 @@ function LuaJITState:new(params)
 
   
   setHookedGlobalFunction(o.L, "_RINVOKE", function(L)
-    log(VERBOSE, string.format("VM: _RINVOKE: lua_gettop() = %s", lua_gettop(L)))
+    log(VVERBOSE, string.format("VM: _RINVOKE: lua_gettop() = %s", lua_gettop(L)))
 
     local funcName = core.readString(lua_tolstring(L, 1, 0))
     local serializedArgs = core.readString(lua_tolstring(L, 2, 0))
 
-    log(VERBOSE, string.format("_RINVOKE(%s): %s", funcName, serializedArgs:sub(1, 50)))
+    log(VVERBOSE, string.format("_RINVOKE(%s): %s", funcName, serializedArgs:sub(1, 50)))
     local deserializedArgs = serialization.deserialize(serializedArgs, false)
-    log(VERBOSE, string.format("_RINVOKE: deserialized: %s", deserializedArgs))
+    log(VVERBOSE, string.format("_RINVOKE: deserialized: %s", deserializedArgs))
 
-    log(VERBOSE, string.format("_RINVOKE: resolving: %s", funcName))
+    log(VVERBOSE, string.format("_RINVOKE: resolving: %s", funcName))
     local f = o.interface:resolve(funcName)
     if f == nil then
-      log(VERBOSE, string.format("_RINVOKE: resolving failed for: %s", funcName))
+      log(VVERBOSE, string.format("_RINVOKE: resolving failed for: %s", funcName))
       lua_pushboolean(o.L, 0)
       local errString = core.CString(string.format("Function with name '%s' does not exist in interface", funcName))
       lua_pushstring(o.L, errString.address)
       return 2
     end
 
-    log(VERBOSE, string.format("_RINVOKE: pcall: %s with n args: %s", f, #deserializedArgs))
+    log(VVERBOSE, string.format("_RINVOKE: pcall: %s with n args: %s", f, #deserializedArgs))
     local results = table.pack(pcall(f, table.unpack(deserializedArgs)))
-    log(VERBOSE, string.format("_RINVOKE: pcall: results count: %s", #results))
+    log(VVERBOSE, string.format("_RINVOKE: pcall: results count: %s", #results))
     local status = results[1]
     if status == false then
-      log(VERBOSE, string.format("_RINVOKE: pcall: failed"))
+      log(WARNING, string.format("_RINVOKE: pcall: failed"))
       local err = results[2] or "error message is missing"
       local errMsg = string.format("Function with name '%s' failed: %s", tostring(funcName), tostring(err))
-      log(VERBOSE, string.format("_RINVOKE: pcall: failed: reason:\n%s", errMsg))
+      log(WARNING, string.format("_RINVOKE: pcall: failed: reason:\n%s", errMsg))
       local errString = core.CString(errMsg)
       lua_pushboolean(o.L, 0)
       lua_pushstring(o.L, errString.address)
       return 2
     end
 
-    log(VERBOSE, string.format("_RINVOKE: serializing results"))
+    log(VVERBOSE, string.format("_RINVOKE: serializing results"))
     local serializedResults = serialization.serialize(select(2, table.unpack(results)))
-    log(VERBOSE, string.format("_RINVOKE: serialized results: %s", serializedResults:sub(1, 50)))
+    log(VVERBOSE, string.format("_RINVOKE: serialized results: %s", serializedResults:sub(1, 50)))
     local pSerializedResults = core.CString(serializedResults)
 
     lua_pushboolean(o.L, 1)
@@ -318,7 +333,7 @@ function LuaJITState:new(params)
   o:executeFile("ucp/modules/luajit/common/code.lua")
   o:executeFile("ucp/modules/luajit/common/compile.lua")
 
-  log(VERBOSE, string.format("VM: new (end): lua_gettop() = %s", lua_gettop(o.L)))
+  log(VVERBOSE, string.format("VM: new (end): lua_gettop() = %s", lua_gettop(o.L)))
 
   return o
 end
@@ -346,7 +361,7 @@ end
 ---@return LuaJITState|number|nil returns depending on cleanup returns self, a lua object, or a number indicating how many stack values to return
 function LuaJITState:executeString(str, path, cleanup, convert)
   local L = self.L
-  log(VERBOSE, string.format("VM: executeString: lua_gettop() = %s", lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: executeString: lua_gettop() = %s", lua_gettop(L)))
 
   local path = path or str:sub(1, 20)
 
@@ -405,7 +420,7 @@ function LuaJITState:executeString(str, path, cleanup, convert)
   -- stack: [_SERIALIZE], return values ...
   local returns = lua_gettop(L) - stack
 
-  log(VERBOSE, string.format("executed: %s, returned %s values", path, returns))
+  log(VVERBOSE, string.format("executed: %s, returned %s values", path, returns))
 
   if cleanup then
     if convert then
@@ -413,7 +428,7 @@ function LuaJITState:executeString(str, path, cleanup, convert)
         -- Imagine returns was 2, then the _SERIALIZE is at -3
         -- local nargs = -1 * (returns + 1)
 
-        log(VERBOSE, string.format("Serializing %s return values", returns))
+        log(VVERBOSE, string.format("Serializing %s return values", returns))
         -- stack: [_SERIALIZE], return values ...
         local serRet = lua_pcall(L, returns, 1, 0) -- only allow 1 return value (the serialized object)
         
@@ -475,16 +490,16 @@ end
 ---@param ... any arguments to the function
 ---@return any value the return values of the function
 function LuaJITState:invoke(funcName, ...)
-  log(VERBOSE, string.format("invoke(%s)", funcName))
+  log(VVERBOSE, string.format("invoke(%s)", funcName))
 
   local args = {...}
 
   local L = self.L
 
-  log(VERBOSE, string.format("VM: invoke: lua_gettop() = %s", lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: invoke: lua_gettop() = %s", lua_gettop(L)))
 
   local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
-  log(VERBOSE, string.format("invoke: %s(%s)", funcName, serializedArgs))
+  log(VVERBOSE, string.format("invoke: %s(%s)", funcName, serializedArgs))
 
   local funcStr = core.CString(funcName)
   local argsStr = core.CString(serializedArgs)
@@ -505,7 +520,7 @@ function LuaJITState:invoke(funcName, ...)
   end
 
   local serializedRet = core.readString(lua_tolstring(L, -1, 0))
-  log(VERBOSE, string.format("invoke: %s() => %s", funcName, serializedRet))
+  log(VVERBOSE, string.format("invoke: %s() => %s", funcName, serializedRet))
   local result = serialization.deserialize(serializedRet, false)
 
   lua_settop(L, stack)
@@ -518,13 +533,13 @@ end
 ---@param ... any arguments to the function
 ---@return bool,any value boolean indicating success and the return values
 function LuaJITState:pinvoke(funcName, ...)
-  log(VERBOSE, string.format("invoke(%s)", funcName))
+  log(VVERBOSE, string.format("invoke(%s)", funcName))
 
   local args = {...}
 
   local L = self.L
 
-  log(VERBOSE, string.format("VM: pinvoke: lua_gettop() = %s", lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: pinvoke: lua_gettop() = %s", lua_gettop(L)))
 
   local serializedArgs = serialization.serialize(args) -- todo: check if no arguments is correctly forwarded here!
 
@@ -567,7 +582,7 @@ function LuaJITState:sendEvent(key, obj)
 
   local L = self.L
 
-  log(VERBOSE, string.format("VM: sendEvent: lua_gettop() = %s", lua_gettop(L)))
+  log(VVERBOSE, string.format("VM: sendEvent: lua_gettop() = %s", lua_gettop(L)))
 
   local value = serialization.serialize(obj)
 

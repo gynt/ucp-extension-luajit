@@ -1,0 +1,14 @@
+meta:
+  version: 1.0.0
+options:
+  - url: luajit.debugging.lowLevelExceptions.enabled
+    header: "Debug game crashes by handling low level errors from LuaJIT"
+    text: "Turning it on means handlers are put in place to catch exceptions occurring in calls to C code from LuaJIT"
+    hasHeader: true
+    display: UCP2Switch
+    category:
+      - Stability
+      - Debugging
+    contents:
+      type: boolean
+      value: false
