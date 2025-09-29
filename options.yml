@@ -12,3 +12,25 @@ options:
     contents:
       type: boolean
       value: false
+  - url: luajit.debugging.jit.disabled
+    header: "Disable Just-in-Time (LuaJIT) which would degrade performance"
+    text: "Disabling JIT will result in a slow running game"
+    hasHeader: true
+    display: UCP2Switch
+    category:
+      - Stability
+      - Debugging
+    contents:
+      type: boolean
+      value: false
+  - url: luajit.debugging.trace.enabled
+    header: "Trace LuaJIT"
+    text: "Turning it on will result in a slow running game, for debug purposes only"
+    hasHeader: true
+    display: UCP2Switch
+    category:
+      - Stability
+      - Debugging
+    contents:
+      type: boolean
+      value: false

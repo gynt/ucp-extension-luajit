@@ -47,9 +47,17 @@ local globalConfig = {
   debugging = {
     lowLevelExceptions = {
       enabled = false,
+    },
+    jit = {
+      disabled = false,
+    },
+    trace = {
+      enabled = false,
     }
   }
 }
+
+local luaJIT_setmode = core.exposeCode(getProcAddress("luaJIT_setmode"), 3, 0)
 
 local function createState()
   local L = luaL_newstate()
@@ -59,6 +67,45 @@ local function createState()
     init_exceptionsHandler(L)
   end
 
+  if globalConfig.debugging.jit.disabled == true then
+    -- turn off JIT
+    if luaJIT_setmode(L, 0, 0) ~= 1 then
+      log(WARNING, string.format("failed to switch off JIT"))
+    else
+      log(WARNING, string.format("JIT is OFF"))
+    end
+  end
+
+  if globalConfig.debugging.trace.enabled == true then
+    local cleanstack = lua_gettop(L)
+    local script = [[
+      debug.sethook(function() 
+        local info=debug.getinfo(2)
+        if log == nil then return end
+        log(VERBOSE, string.format("[%s] %s: line %s", info.what, info.short_src, info.currentline)) 
+      end, "l")
+    ]]
+    local cstr = core.CString(script)
+    local loadRet = luaL_loadstring(L, cstr.address)
+    if loadRet ~= 0 then
+      -- stack: [_SERIALIZE], error message
+      log(WARNING, string.format(script))
+      log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+      lua_settop(L, cleanstack) -- exit cleanly
+    else
+      -- stack: [_SERIALIZE], string
+      local ret = lua_pcall(L, 0, -1, 0)
+      -- stack: [_SERIALIZE], return values ...
+      if ret ~= 0 then
+        log(WARNING, string.format(script))
+        log(ERROR, string.format("Fail: %s", core.readString(lua_tolstring(L, -1, 0))))
+      else
+        log(WARNING, "tracing enabled")
+      end
+      lua_settop(L, cleanstack)
+    end
+
+  end
   log(VERBOSE, string.format("VM: createState: lua_gettop() = %s", lua_gettop(L)))
   
   return L
@@ -286,7 +333,7 @@ function LuaJITState:new(params)
     log(VVERBOSE, string.format("_RINVOKE: resolving: %s", funcName))
     local f = o.interface:resolve(funcName)
     if f == nil then
-      log(VVERBOSE, string.format("_RINVOKE: resolving failed for: %s", funcName))
+      log(WARNING, string.format("_RINVOKE: resolving failed for: %s", funcName))
       lua_pushboolean(o.L, 0)
       local errString = core.CString(string.format("Function with name '%s' does not exist in interface", funcName))
       lua_pushstring(o.L, errString.address)

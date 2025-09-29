@@ -8,7 +8,7 @@ local ProxyInterface = {}
 ---@field extra table
 local ProxyInterfaceOptions = {}
 
----@param options table
+---@param options ProxyInterfaceOptions
 ---@return ProxyInterface interface
 function ProxyInterface:new(options)
   local o = {
