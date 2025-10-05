@@ -8,7 +8,7 @@ function luajit:enable(config)
   LuaJITState:setGlobalConfig(config)
   local cTests = config.tests or {}
   if cTests.test == nil or cTests.test == true then
-    log(WARNING, "running tests")
+    log(VERBOSE, "running tests")
     local state = self:createState()
     state:executeFile("ucp/modules/luajit/tests/test.lua")
   end
